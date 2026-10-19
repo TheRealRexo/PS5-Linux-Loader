@@ -23,6 +23,7 @@ Any other firmware is refused by the payload. The exploit used here is the same 
   - Detects boot files (`bzImage`, `initrd.img`, `cmdline.txt`) across USB search paths.
   - OS-image picker, boot/install target selector and install-size field.
   - File manager (list / upload / delete) for the boot directory.
+  - View the **Hardware / driver support** table (GPU, WiFi/Bluetooth chipset, Ethernet, audio, NVMe, USB) with chipset names and driver status, including whether the PS5 WiFi firmware has been dumped.
 - **Anonymous FTP server** (**port 21**, rooted at the upload dir) so multi-GB `*.img` files can be copied to the console without the WebUI's HTTP upload limits.
 - **M.2 install tools** (`tools/`) that place the OS as a **`.img` file** on the internal NVMe SSD:
   - `m2_init` — writes the hidden GPT (`--device`, `--size-gb`).
@@ -83,10 +84,10 @@ sudo PATH=$PWD:$PATH ./ps5-osinstall --img /mnt/usb/ps5-arch.img \
 
 While the payload runs it serves a page on `http://$PS5IP:8080` and an anonymous FTP server on `ftp://$PS5IP:21`. Use the WebUI to:
 
-- review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
-- pick the OS image and the boot/install target, and set the **VRAM size** (MiB, 0 = auto);
-- upload or delete files in the boot directory (including to `/mnt/ext1` for USB-free setups);
-- view the **Hardware / driver support** table (GPU, WiFi/Bluetooth chipset, Ethernet, audio, NVMe, USB) with chipset names and driver status, including whether the PS5 WiFi firmware has been dumped.
+- Review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
+- Pick the OS image and the boot/install target, and set the **VRAM size** (MiB, 0 = auto);
+- Upload or delete files in the boot directory (including to `/mnt/ext1` for USB-free setups);
+- View the **Hardware / driver support** table (GPU, WiFi/Bluetooth chipset, Ethernet, audio, NVMe, USB) with chipset names and driver status, including whether the PS5 WiFi firmware has been dumped.
 
 If you don't submit anything within ~2 minutes it boots with the detected defaults. Large images can be pushed over FTP into the same directory.
 

@@ -10,16 +10,19 @@ name: Release
 # Run it from Actions -> Release -> Run workflow, or push a tag like v1.0.0.
 #
 # Each image needs ~12 GB uncompressed; a free-disk-space step runs first so a
-# stock ubuntu-latest runner has room. Bump `runs-on` to a larger runner if a
-# distro fails for lack of disk space.
+# stock ubuntu-latest runner has room. Bazzite and Bazzite Deck are much larger
+# (~4-6 GB compressed, tens of GB raw) -- bump `runs-on` to a larger runner for
+# those if a build fails for lack of disk space.
 
 on:
   workflow_dispatch:
     inputs:
       distros:
-        description: Comma-separated distros to wrap (from ps5-linux-image)
+        description: >-
+          Comma-separated distros to wrap, or "all". Available: ubuntu2604,
+          arch, cachyos, fedora, proxmox, debian, bazzite, bazzite-deck, steamos
         required: true
-        default: arch,ubuntu2604,cachyos
+        default: ubuntu2604,arch,cachyos,fedora,proxmox,debian,bazzite,bazzite-deck,steamos
       tag:
         description: Release tag
         required: true
@@ -34,6 +37,8 @@ permissions:
 env:
   # Public mirror the official ps5-linux images are published to.
   R2_BASE: https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev
+  # Every distro published by ps5-linux/ps5-linux-image.
+  ALL_DISTROS: ubuntu2604,arch,cachyos,fedora,proxmox,debian,bazzite,bazzite-deck,steamos
 
 jobs:
   prepare:
@@ -49,9 +54,14 @@ jobs:
             list="${{ inputs.distros }}"
             tag="${{ inputs.tag }}"
           else
-            list="arch,ubuntu2604,cachyos"
+            list="$ALL_DISTROS"
             tag="${GITHUB_REF_NAME}"
           fi
+
+          # "all" (or empty) means every distro upstream publishes.
+          case "$(echo "$list" | xargs)" in
+            ""|all|ALL|All) list="$ALL_DISTROS" ;;
+          esac
 
           json="["
           IFS=',' read -ra arr <<< "$list"

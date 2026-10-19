@@ -80,7 +80,7 @@ jobs:
   payload:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Fetch ps5-payload-sdk (prebuilt)
         run: |
@@ -108,7 +108,7 @@ jobs:
           ( cd payload && sha256sum * > payload.sha256 && cat payload.sha256 )
 
       - name: Upload payload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: payload
           path: payload/
@@ -123,7 +123,7 @@ jobs:
       matrix:
         distro: ${{ fromJSON(needs.prepare.outputs.distros) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
@@ -182,7 +182,7 @@ jobs:
           cat "$name.osimage"
 
       - name: Upload image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: image-${{ matrix.distro }}
           path: |
@@ -196,7 +196,7 @@ jobs:
     needs: [prepare, payload, images]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           path: dist
           merge-multiple: true
@@ -239,8 +239,14 @@ jobs:
             echo "tooling (\`m2_init\`, \`ps5-osinstall\`, \`ps5-osexec\`), and wrapped"
             echo ""OS images" (official ps5-linux images with the tooling baked in)."
             echo
-            echo "Images attached to this release (<=2 GB):"
+            echo "OS images attached to this release (<=2 GB):"
             for f in dist/*.img.xz; do
+              [ -f "$f" ] || continue
+              echo "- $(basename "$f")"
+            done
+            echo
+            echo "Boot files (bzImage, initrd.img, cmdline.txt, vram.txt) for USB-free setups:"
+            for f in dist/*-boot.tar.gz; do
               [ -f "$f" ] || continue
               echo "- $(basename "$f")"
             done
@@ -257,7 +263,7 @@ jobs:
           cat dist/body.md
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: ${{ needs.prepare.outputs.tag }}

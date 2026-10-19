@@ -122,10 +122,10 @@ tools/          m2_init, ps5-osinstall, ps5-osexec, inject-os-image.sh
 .github/        CI that builds the payload and wraps OS images into a release
 ```
 
-## FAQ
+## Q&A
 
 - **Q: Which firmwares work?** A: 13.00, 13.20, 13.60 (13.60 tested; 13.00/13.20 untested).
-- **Q: Can I dual-boot Linux and the PS5 OS?** A: Not simultaneously — this is a soft-mod; re-run the exploit to boot Linux.
+- **Q: Can I dual-boot Linux and the PS5 OS?** A: **Practically** yes, **but** ***technically*** you always have to boot the PS5 OS first to run the payload if you wanna run linux.
 - **Q: Can I keep using my PS5 normally?** A: Yes; the exploit is in-memory and does not modify the PS5 OS.
 - **Q: After reboot I get a "Repairing" / "Your PS5 wasn't turned off properly" screen.** A: Expected, and harmless.
 - **Q: LED is white but the screen is black.** A: Try removing `video=DP-1:1920x1080@60` from `cmdline.txt`, toggle HDCP, try another display/capture device, or add `amdgpu.force_1080p=1`.

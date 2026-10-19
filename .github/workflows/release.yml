@@ -1,0 +1,198 @@
+name: Release
+
+# Builds a complete release in one shot:
+#   1. the ps5-linux-loader payload (bin/ps5-linux-loader.elf) + storage tools,
+#   2. "OS images" -- the official ps5-linux disk images from
+#      ps5-linux/ps5-linux-image with the M.2 / storage tooling baked into their
+#      root filesystem (via tools/inject-os-image.sh) so they work with the
+#      loader's install + loop-mount flow.
+#
+# Run it from Actions -> Release -> Run workflow, or push a tag like v1.0.0.
+#
+# Each image needs ~12 GB uncompressed; a free-disk-space step runs first so a
+# stock ubuntu-latest runner has room. Bump `runs-on` to a larger runner if a
+# distro fails for lack of disk space.
+
+on:
+  workflow_dispatch:
+    inputs:
+      distros:
+        description: Comma-separated distros to wrap (from ps5-linux-image)
+        required: true
+        default: arch,ubuntu2604,cachyos
+      tag:
+        description: Release tag
+        required: true
+        default: v1.0.0
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  # Public mirror the official ps5-linux images are published to.
+  R2_BASE: https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      distros: ${{ steps.set.outputs.distros }}
+      tag: ${{ steps.set.outputs.tag }}
+    steps:
+      - id: set
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            list="${{ inputs.distros }}"
+            tag="${{ inputs.tag }}"
+          else
+            list="arch,ubuntu2604,cachyos"
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          json="["
+          IFS=',' read -ra arr <<< "$list"
+          for raw in "${arr[@]}"; do
+            d="$(echo "$raw" | xargs)"
+            [ -n "$d" ] || continue
+            [ "$json" != "[" ] && json="$json,"
+            json="$json\"$d\""
+          done
+          json="$json]"
+
+          echo "distros=$json" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "will wrap: $json  ->  release $tag"
+
+  payload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch ps5-payload-sdk (prebuilt)
+        run: |
+          set -euo pipefail
+          curl -fL "https://github.com/ps5-payload-dev/sdk/releases/latest/download/ps5-payload-sdk.zip" -o sdk.zip
+          unzip -q sdk.zip
+          prospero="$(find "$PWD" -path '*/toolchain/prospero.mk' -print -quit)"
+          [ -n "$prospero" ] || { echo "prospero.mk not found in SDK zip" >&2; exit 1; }
+          sdk="${prospero%/toolchain/prospero.mk}"
+          echo "PS5_PAYLOAD_SDK=$sdk" >> "$GITHUB_ENV"
+          echo "using SDK at $sdk"
+
+      - name: Build payload
+        run: make
+
+      - name: Build storage tools
+        run: make -C tools
+
+      - name: Stage payload
+        run: |
+          set -euo pipefail
+          mkdir -p payload
+          cp bin/ps5-linux-loader.elf payload/
+          cp tools/m2_init tools/ps5-osinstall tools/ps5-osexec payload/
+          ( cd payload && sha256sum * > payload.sha256 && cat payload.sha256 )
+
+      - name: Upload payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: payload
+          path: payload/
+          if-no-files-found: error
+
+  images:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: ${{ fromJSON(needs.prepare.outputs.distros) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Build storage tooling
+        run: make -C tools
+
+      - name: Download official ${{ matrix.distro }} image
+        run: |
+          set -euo pipefail
+          name="ps5-${{ matrix.distro }}-os.img"
+          curl -fL "$R2_BASE/ps5-${{ matrix.distro }}.img.xz" -o source.img.xz
+          unxz -v source.img.xz
+          mv source.img "$name"
+          ls -lh "$name"
+
+      - name: Inject tooling + marker
+        run: sudo ./tools/inject-os-image.sh --img "ps5-${{ matrix.distro }}-os.img"
+
+      - name: Recompress + checksum
+        run: |
+          set -euo pipefail
+          name="ps5-${{ matrix.distro }}-os.img"
+          xz -T0 -4 "$name"
+          sha256sum "$name.xz" > "$name.xz.sha256"
+          ls -lh "$name.xz" "$name.osimage"
+          cat "$name.osimage"
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.distro }}
+          path: |
+            ps5-${{ matrix.distro }}-os.img.xz
+            ps5-${{ matrix.distro }}-os.img.xz.sha256
+            ps5-${{ matrix.distro }}-os.img.osimage
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, payload, images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Assemble checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          echo "==== release contents ===="
+          ls -lh
+          echo
+          echo "==== checksums ===="
+          cat *.img.xz.sha256 payload.sha256
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/ps5-linux-loader.elf
+            dist/m2_init
+            dist/ps5-osinstall
+            dist/ps5-osexec
+            dist/payload.sha256
+            dist/*.img.xz
+            dist/*.img.xz.sha256
+            dist/*.img.osimage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

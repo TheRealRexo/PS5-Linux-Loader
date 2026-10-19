@@ -32,8 +32,8 @@ Any other firmware is refused by the payload. The exploit used here is the same 
 
 ## Requirements
 
-- **Required**: USB drive, minimum 16 GB (external SSD strongly recommended) holding the Linux image **and the boot files** (`bzImage`, `initrd.img`, `cmdline.txt`), which the payload reads from the USB root.
 - **Required**: USB keyboard (dongles supported).
+- **Boot files** (`bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt`) and the Linux `.img` can live on a USB drive **or** on the internal M.2 SSD (`/mnt/ext1`). A USB drive is only needed if you are not using the M.2 flow.
 - **Optional**: USB WLAN adapter (Marvell chipsets only), USB mouse, Bluetooth dongle for DualSense, internal M.2 SSD for a dedicated Linux `.img`.
 
 ## Configure PS5 settings
@@ -73,7 +73,9 @@ sudo PATH=$PWD:$PATH ./ps5-osinstall --img /mnt/usb/ps5-arch.img \
      --target m2 --device /dev/nvme0n1 --size-gb 128 --label PS5M2 --yes
 ```
 
-`ps5-osinstall` writes a `ps5-os-image` marker describing the install. On boot the initramfs finds the `.img` on the M.2, loop-mounts it, and systemd resumes onto the image's own root filesystem. Boot files (`bzImage` / `initrd.img` / `cmdline.txt`) still come from the USB.
+`ps5-osinstall` writes a `ps5-os-image` marker describing the install. On boot the initramfs finds the `.img` on the M.2, loop-mounts it, and systemd resumes onto the image's own root filesystem.
+
+**USB-free boot:** copy the boot files (`bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt`) plus your `.img` onto the M.2 (`/mnt/ext1`) via the WebUI / FTP. The payload adds `/mnt/ext1` to its search paths and tries to mount the M.2 automatically, so no USB is required after that.
 
 > ⚠️ **Coexistence caveat.** The official guide treats the M.2 as Linux-exclusive. A PS5 **soft format** is expected to leave the Linux data partition (and therefore the `.img`) intact, but a **repair / hard format will erase it**. Back up your image.
 
@@ -82,10 +84,18 @@ sudo PATH=$PWD:$PATH ./ps5-osinstall --img /mnt/usb/ps5-arch.img \
 While the payload runs it serves a page on `http://$PS5IP:8080` and an anonymous FTP server on `ftp://$PS5IP:21`. Use the WebUI to:
 
 - review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
-- pick the OS image and the boot/install target;
-- upload or delete files in the boot directory.
+- pick the OS image and the boot/install target, and set the **VRAM size** (MiB, 0 = auto);
+- upload or delete files in the boot directory (including to `/mnt/ext1` for USB-free setups).
 
 If you don't submit anything within ~2 minutes it boots with the detected defaults. Large images can be pushed over FTP into the same directory.
+
+## Releases
+
+Each tagged release ships:
+
+- `ps5-linux-loader.elf` + `m2_init` / `ps5-osinstall` / `ps5-osexec` (with checksums).
+- Wrapped OS images `ps5-<distro>-os.img.xz` (official ps5-linux images with the M.2/storage tooling baked into the root filesystem) for `ubuntu2604`, `arch`, `cachyos`, `fedora`, `proxmox`, `debian`, `bazzite`, `bazzite-deck`, `steamos` (distros whose wrapped image exceeds 2 GB are listed in `large.txt` instead of being attached).
+- `ps5-<distro>-boot.tar.gz` containing `bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt` for USB-free / manual setups.
 
 ## Building from source
 
@@ -107,7 +117,7 @@ include/        headers
 shellcode_1360.c        committed 13.60 kernel + AP shellcode
 shellcode_kernel_13xx.c committed 13.00/13.20 kernel shellcode (built from upstream FW_13XX_PORT)
 tools/          m2_init, ps5-osinstall, ps5-osexec, inject-os-image.sh
-.github/        CI that assembles the bootable USB payload/initrd
+.github/        CI that builds the payload and wraps OS images into a release
 ```
 
 ## FAQ

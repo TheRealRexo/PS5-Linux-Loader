@@ -151,6 +151,27 @@ jobs:
       - name: Inject tooling + marker
         run: sudo bash ./tools/inject-os-image.sh --img "ps5-${{ matrix.distro }}-os.img"
 
+      - name: Extract boot files (bzImage, initrd, cmdline, vram)
+        run: |
+          set -euo pipefail
+          name="ps5-${{ matrix.distro }}-os.img"
+          rm -rf bootfiles && mkdir -p bootfiles
+          LOOP=$(sudo losetup -Pf --show "$name")
+          for _ in $(seq 1 10); do [ -b "${LOOP}p1" ] && break; sleep 1; done
+          sudo mkdir -p /tmp/bootmnt
+          sudo mount "${LOOP}p1" /tmp/bootmnt
+          for f in bzImage initrd.img cmdline.txt vram.txt; do
+            if [ -f "/tmp/bootmnt/$f" ]; then cp "/tmp/bootmnt/$f" "bootfiles/$f"; fi
+          done
+          # per-distro initrds, if present
+          for f in /tmp/bootmnt/initrd*.img; do
+            [ -f "$f" ] && cp "$f" bootfiles/
+          done
+          sudo umount /tmp/bootmnt
+          sudo losetup -d "$LOOP"
+          tar -czf "ps5-${{ matrix.distro }}-boot.tar.gz" -C bootfiles .
+          ls -lh "ps5-${{ matrix.distro }}-boot.tar.gz" bootfiles/
+
       - name: Recompress + checksum
         run: |
           set -euo pipefail
@@ -168,6 +189,7 @@ jobs:
             ps5-${{ matrix.distro }}-os.img.xz
             ps5-${{ matrix.distro }}-os.img.xz.sha256
             ps5-${{ matrix.distro }}-os.img.osimage
+            ps5-${{ matrix.distro }}-boot.tar.gz
           if-no-files-found: error
 
   release:
@@ -249,6 +271,7 @@ jobs:
             dist/*.img.xz
             dist/*.img.xz.sha256
             dist/*.img.osimage
+            dist/*-boot.tar.gz
             dist/large.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

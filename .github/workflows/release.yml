@@ -159,7 +159,7 @@ jobs:
           LOOP=$(sudo losetup -Pf --show "$name")
           for _ in $(seq 1 10); do [ -b "${LOOP}p1" ] && break; sleep 1; done
           sudo mkdir -p /tmp/bootmnt
-          sudo mount "${LOOP}p1" /tmp/bootmnt
+          sudo mount -t vfat "${LOOP}p2" /tmp/bootmnt
           for f in bzImage initrd.img cmdline.txt vram.txt; do
             if [ -f "/tmp/bootmnt/$f" ]; then cp "/tmp/bootmnt/$f" "bootfiles/$f"; fi
           done

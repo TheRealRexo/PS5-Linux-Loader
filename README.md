@@ -87,7 +87,7 @@ See the upstream [ps5-linux README](https://github.com/ps5-linux/ps5-linux-loade
 - **Q: Will >=8.00 firmwares be supported?** A: No.
 - **Q: Can I dual-boot Linux and PS5 OS?** A: No — this is a soft-mod; re-run the exploit to boot Linux.
 - **Q: Can I continue using my PS5 if I install Linux?** A: Yes, the internal SSD is not modified.
-- **Q: After reboot I get a "Repairing" / "Your PS5 wasn't turned off properly" screen.** A: Yes, and it's harmless.
+- **Q: After reboot I get a "Repairing" / "Your PS5 wasn't turned off properly" screen, is that normal?** A: Yes, and it's harmless.
 
 ## Credits
 

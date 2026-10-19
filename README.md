@@ -132,15 +132,20 @@ tools/          m2_init, ps5-osinstall, ps5-osexec, inject-os-image.sh
 
 Upstream [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader) and its contributors, including:
 
-- [theflow](https://github.com/TheOfficialFloW) — ps5-linux-loader, patches, tools
-- [c0w](https://github.com/c0w-ar) — ps5-linux-loader
-- [Ouroboroshen](https://github.com/Ouroboroshen) — 13.60 Fix (#46)
-- [fail0verflow](https://github.com/fail0verflow) — prosperous
-- [flatz](https://github.com/flatz) — HV exploit
-- [cragson](https://github.com/cragson) — HV exploit implementation
-- [john-tornblom](https://github.com/john-tornblom) — PS5 SDK
+- [theflow](https://github.com/TheOfficialFloW): [ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader), [ps5-linux-patches](https://github.com/ps5-linux/ps5-linux-patches), [ps5-linux-tools](https://github.com/ps5-linux/ps5-linux-tools)
+- [c0w](https://github.com/c0w-ar): [ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader)
+- [resulknad](https://github.com/resulknad): [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image)
+- [rmuxnet](https://github.com/rmuxnet): [ps5 ethernet driver](https://github.com/ps5-linux/ps5-linux-patches/commit/643e214d7bd37f292045fc0dbb821e421f7a3e47)
+- [Ouroboroshen](https://github.com/Ouroboroshen): 13.60 Fix (#46)
+- [fail0verflow](https://github.com/fail0verflow): [prosperous](https://github.com/fail0verflow/prosperous)
+- [flatz](https://github.com/flatz): [HV exploit](https://gist.github.com/flatz/620ddda6d64acca6d1c990dc3080ac0e)
+- [cragson](https://github.com/cragson): [HV exploit implementation](https://github.com/cragson/ps5-hen)
+- [john-tornblom](https://github.com/john-tornblom): [PS5 SDK](https://github.com/ps5-payload-dev/sdk)
+- [echostretch](https://github.com/echostretch): Offsets and testing
+- [kirathenotebook](https://github.com/kirathenotebook): Betatesting and readme contribution
+- 15432: Tests on BC-250
 
-Related work: [PS5Dev/Byepervisor-Reborn](https://github.com/PS5Dev/Byepervisor-Reborn) (13.xx rest-mode hypervisor exploit). See the upstream repository for the complete contributor list.
+Related work: [PS5Dev/Byepervisor-Reborn](https://github.com/PS5Dev/Byepervisor-Reborn) (13.xx rest-mode hypervisor exploit; bug found by [theflow0](https://x.com/theflow0)). See the upstream repository for the complete contributor list.
 
 ## License
 

@@ -179,6 +179,24 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Partition oversized assets
+        run: |
+          set -euo pipefail
+          mkdir -p dist/large
+          : > dist/large.txt
+          for f in dist/*.img.xz; do
+            [ -f "$f" ] || continue
+            sz=$(stat -c %s "$f")
+            if [ "$sz" -gt 2147483647 ]; then
+              base=$(basename "$f")
+              echo "oversized (>$((2*1024*1024*1024)) B): $base ($sz bytes) -> skipping GitHub asset"
+              mv "$f" "dist/large/$base"
+              # keep its checksum/descriptor in dist so they still ship
+              echo "$base" >> dist/large.txt
+            fi
+          done
+          echo "large distros:"; cat dist/large.txt || true
+
       - name: Assemble checksums
         run: |
           set -euo pipefail
@@ -187,14 +205,41 @@ jobs:
           ls -lh
           echo
           echo "==== checksums ===="
-          cat *.img.xz.sha256 payload.sha256
+          cat *.img.xz.sha256 payload.sha256 2>/dev/null || true
+
+      - name: Build release body
+        run: |
+          set -euo pipefail
+          {
+            echo "PS5 Linux Loader release \`${{ needs.prepare.outputs.tag }}\`."
+            echo
+            echo "Contains the loader payload (\`ps5-linux-loader.elf\`), the M.2/storage"
+            echo "tooling (\`m2_init\`, \`ps5-osinstall\`, \`ps5-osexec\`), and wrapped"
+            echo ""OS images" (official ps5-linux images with the tooling baked in)."
+            echo
+            echo "Images attached to this release (<=2 GB):"
+            for f in dist/*.img.xz; do
+              [ -f "$f" ] || continue
+              echo "- $(basename "$f")"
+            done
+            if [ -s dist/large.txt ]; then
+              echo
+              echo "Images too large for a GitHub release asset (>2 GB) are NOT attached;"
+              echo "build them locally with \`tools/inject-os-image.sh\`, or fetch the"
+              echo "upstream image from ps5-linux/ps5-linux-image and wrap it:"
+              while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
+            fi
+            echo
+            echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."
+          } > dist/body.md
+          cat dist/body.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: ${{ needs.prepare.outputs.tag }}
-          generate_release_notes: true
+          body_path: dist/body.md
           files: |
             dist/ps5-linux-loader.elf
             dist/m2_init
@@ -204,5 +249,6 @@ jobs:
             dist/*.img.xz
             dist/*.img.xz.sha256
             dist/*.img.osimage
+            dist/large.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

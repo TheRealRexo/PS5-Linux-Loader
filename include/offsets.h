@@ -77,6 +77,8 @@ typedef struct _offset_list {
 _Static_assert(sizeof(offset_list) == 0x1E0,
                "offset_list must match the 13.60 60-qword table");
 
+extern offset_list off_1300;
+extern offset_list off_1320;
 extern offset_list off_1360;
 
 #endif

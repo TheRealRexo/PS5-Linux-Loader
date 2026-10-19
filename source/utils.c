@@ -31,6 +31,12 @@ int set_offsets(void) {
   if (fw == 0)
     return -1;
   switch (fw) {
+  case 0x1300:
+    env_offset = off_1300;
+    break;
+  case 0x1320:
+    env_offset = off_1320;
+    break;
   case 0x1360:
     env_offset = off_1360;
     break;

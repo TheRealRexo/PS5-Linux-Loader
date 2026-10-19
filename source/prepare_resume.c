@@ -4,6 +4,7 @@
 #include "iommu.h"
 #include "offsets.h"
 #include "shellcode_1360.h"
+#include "shellcode_kernel_13xx.h"
 #include "utils.h"
 #include <fcntl.h>
 #include <stdio.h>
@@ -100,6 +101,13 @@ int prepare_resume(void **shellcode_kernel, size_t *shellcode_kernel_len) {
 
   const uint8_t *shellcode_src = stock_shellcode_kernel_1360;
   size_t shellcode_len = stock_shellcode_kernel_1360_len;
+  if (fw == 0x1300 || fw == 0x1320) {
+    shellcode_src = shellcode_kernel_13xx_bin;
+    shellcode_len = shellcode_kernel_13xx_bin_len;
+  }
+
+  if ((fw == 0x1300 || fw == 0x1320) && shellcode_len > 0x3910)
+    return -1;
 
   *shellcode_kernel =
       mmap(NULL, ALIGN_UP(shellcode_len, PAGE_SIZE),
@@ -108,7 +116,8 @@ int prepare_resume(void **shellcode_kernel, size_t *shellcode_kernel_len) {
     return -1;
   *shellcode_kernel_len = shellcode_len;
   memcpy(*shellcode_kernel, shellcode_src, shellcode_len);
-  if (apply_1360_dma_e820_map(*shellcode_kernel, shellcode_len)) {
+  if (fw == 0x1360 &&
+      apply_1360_dma_e820_map(*shellcode_kernel, shellcode_len)) {
     notify("13.60 DMA E820 patch did not match stock shellcode\n");
     return -1;
   }

@@ -3,6 +3,7 @@
 #include "firmware.h"
 #include "linux.h"
 #include "utils.h"
+#include "webui.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,10 +16,102 @@ const char *file_paths[] = {
     "/mnt/usb2/PS5/Linux/", "/mnt/usb3/PS5/Linux/",
 };
 
+/* Runtime search paths / overrides, optionally set by the WebUI before boot. */
+static const char **active_paths = file_paths;
+static int active_num_paths = (int)(sizeof(file_paths) / sizeof(file_paths[0]));
+
+/* Packed "key\0val\0key\0val\0" pairs from the WebUI, or NULL. */
+static char *webui_overrides = NULL;
+static char *webui_overrides_end = NULL;
+
+/* Boot/install selection set by the WebUI (passed to the kernel cmdline). */
+static char webui_image[WEBUI_VAL_LEN] = {0};
+static char webui_target[64] = {0};
+static int webui_size_gb = 0;
+static int webui_mode = WEBUI_MODE_BOOT;
+
 long find_and_get_size_of_file(const char *filename, char *found_path);
 int find_and_read_file(const char *filename, void *buf, size_t bufsize);
 
+void loader_set_paths_from_webui(const struct webui_settings *s) {
+  if (!s || s->num_paths <= 0)
+    return;
+  /* s->paths is an array of char[]; build a pointer table into it. */
+  static const char *ptrs[WEBUI_MAX_PATHS];
+  int n = s->num_paths;
+  if (n > WEBUI_MAX_PATHS)
+    n = WEBUI_MAX_PATHS;
+  for (int i = 0; i < n; i++)
+    ptrs[i] = s->paths[i];
+  active_paths = ptrs;
+  active_num_paths = n;
+}
+
+void loader_set_overrides_from_webui(const struct webui_settings *s) {
+  free(webui_overrides);
+  webui_overrides = NULL;
+  webui_overrides_end = NULL;
+  if (!s || s->num_overrides <= 0)
+    return;
+
+  /* Compute packed size: for each pair, key + NUL + val + NUL. */
+  size_t need = 0;
+  for (int i = 0; i < s->num_overrides; i++)
+    need += strlen(s->override_keys[i]) + 1 + strlen(s->override_vals[i]) + 1;
+  need += 1;
+
+  char *buf = malloc(need);
+  if (!buf)
+    return;
+  char *p = buf;
+  for (int i = 0; i < s->num_overrides; i++) {
+    size_t k = strlen(s->override_keys[i]) + 1;
+    size_t v = strlen(s->override_vals[i]) + 1;
+    memcpy(p, s->override_keys[i], k);
+    p += k;
+    memcpy(p, s->override_vals[i], v);
+    p += v;
+  }
+  *p = 0;
+  webui_overrides = buf;
+  webui_overrides_end = buf + need;
+}
+
+void loader_set_boot_from_webui(const struct webui_settings *s) {
+  webui_image[0] = 0;
+  webui_target[0] = 0;
+  webui_size_gb = 0;
+  webui_mode = WEBUI_MODE_BOOT;
+  if (!s)
+    return;
+  snprintf(webui_image, sizeof(webui_image), "%s", s->image);
+  snprintf(webui_target, sizeof(webui_target), "%s", s->target);
+  webui_size_gb = s->size_gb;
+  webui_mode = s->mode;
+}
+
+/* Look up `filename` in a packed key\\0val\\0 list. Returns val or NULL. */
+static const char *lookup_packed(const char *list, const char *list_end,
+                                 const char *filename) {
+  if (!list)
+    return NULL;
+  size_t needle_len = strlen(filename);
+  for (const char *p = list; p < list_end;) {
+    size_t key_len = strlen(p);
+    if (key_len == needle_len && !strncmp(p, filename, needle_len))
+      return p + key_len + 1;
+    p += key_len + 1 + strlen(p + key_len + 1) + 1;
+  }
+  return NULL;
+}
+
 static const char *get_overridden_filename(const char *filename) {
+  /* WebUI overrides take precedence. */
+  const char *from_webui = lookup_packed(webui_overrides, webui_overrides_end,
+                                         filename);
+  if (from_webui)
+    return from_webui;
+
   static int state = 0;
   static char *overrides_start = nullptr;
   static char *overrides_end = nullptr;
@@ -63,14 +156,12 @@ long find_and_get_size_of_file(const char *filename, char *found_path) {
   struct stat st;
 
   filename = get_overridden_filename(filename);
-  int num_paths = sizeof(file_paths) / sizeof(file_paths[0]);
 
-  for (int i = 0; i < num_paths; i++) {
-    snprintf(full_path, sizeof(full_path), "%s%s", file_paths[i], filename);
+  for (int i = 0; i < active_num_paths; i++) {
+    snprintf(full_path, sizeof(full_path), "%s%s", active_paths[i], filename);
 
     if (stat(full_path, &st) == 0) {
-      notify("File '%s' found in '%s' - rmux was here\n", filename,
-             file_paths[i]);
+      notify("File '%s' found in '%s'\n", filename, active_paths[i]);
       strcpy(found_path, full_path);
       return st.st_size;
     }
@@ -83,13 +174,11 @@ int find_and_read_file(const char *filename, void *buf, size_t bufsize) {
   char full_path[256];
   struct stat st;
 
-  int num_paths = sizeof(file_paths) / sizeof(file_paths[0]);
-
-  for (int i = 0; i < num_paths; i++) {
-    snprintf(full_path, sizeof(full_path), "%s%s", file_paths[i], filename);
+  for (int i = 0; i < active_num_paths; i++) {
+    snprintf(full_path, sizeof(full_path), "%s%s", active_paths[i], filename);
 
     if (stat(full_path, &st) == 0) {
-      notify("File '%s' found in '%s'\n", filename, file_paths[i]);
+      notify("File '%s' found in '%s'\n", filename, active_paths[i]);
       return read_file(full_path, buf, bufsize);
     }
   }
@@ -192,6 +281,26 @@ int fetch_linux(struct linux_info *info) {
     strcpy(cmdline, CMD_LINE);
   } else {
     trim_newline(cmdline);
+  }
+
+  /* Append the WebUI boot/install selection (consumed by /init). */
+  size_t cl = strlen(cmdline);
+  if (webui_image[0] && cl + strlen(webui_image) + 32 < sizeof(cmdline)) {
+    cl += (size_t)snprintf(cmdline + cl, sizeof(cmdline) - cl, " ps5.image=%s",
+                           webui_image);
+  }
+  if (webui_target[0] && strcmp(webui_target, "none") &&
+      cl + strlen(webui_target) + 32 < sizeof(cmdline)) {
+    cl += (size_t)snprintf(cmdline + cl, sizeof(cmdline) - cl, " ps5.target=%s",
+                           webui_target);
+  }
+  if (webui_size_gb > 0 && cl + 32 < sizeof(cmdline)) {
+    cl += (size_t)snprintf(cmdline + cl, sizeof(cmdline) - cl,
+                           " ps5.size_gb=%d", webui_size_gb);
+  }
+  if (webui_mode == WEBUI_MODE_INSTALL && cl + 32 < sizeof(cmdline)) {
+    cl += (size_t)snprintf(cmdline + cl, sizeof(cmdline) - cl,
+                           " ps5.mode=install");
   }
 
   info->linux_info = kernel_cave_linux_info;

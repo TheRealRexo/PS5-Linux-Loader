@@ -1,22 +1,40 @@
-# ps5-linux-loader (13.60)
+# ps5-linux-loader (13.xx)
 
-A **firmware-13.60-only** fork of the official [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader), based on the [13.60 Fix (#46)](https://github.com/ps5-linux/ps5-linux-loader/pull/46) merge.
+A **firmware-13.xx** fork of the official [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader) that boots Linux on **rest-mode resume** by defeating the PS5 hypervisor.
 
-This build targets **PS5 Phat and Slim running firmware 13.60** only. It defeats the hypervisor and prepares the system so that Linux boots on **rest-mode resume**. All code paths for firmwares 3.00-7.61 have been stripped, leaving a smaller, single-purpose payload.
+This fork is based on the [13.60 Fix (#46)](https://github.com/ps5-linux/ps5-linux-loader/pull/46) merge and re-adds the multi-firmware 13.xx path, so it supports **13.00, 13.20 and 13.60**. On top of the upstream payload it adds a **built-in SMM WebUI + anonymous FTP server** for managing Linux images, and a set of **M.2 install tools** that store the OS as a single `.img` file on the internal SSD.
 
-The exploit/kernel shellcode for 13.60 is committed directly (`source/shellcode_1360.c`), so this build requires **no separate `shellcode_hv`/`shellcode_kernel` cross-compilation** — a plain `make` against the [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) produces the payload.
-
-> **Credit / provenance.** This is a thin 13.60-only packaging of the upstream project. All exploit, HV, and Linux-boot logic comes from the official authors — see [Credits](#credits). If you want multi-firmware support or the full project, use the [upstream loader](https://github.com/ps5-linux/ps5-linux-loader).
+> **Credit / provenance.** The exploit, HV and Linux-boot logic is the upstream work of the [ps5-linux](https://github.com/ps5-linux/ps5-linux-loader) authors (see [Credits](#credits)). This fork packages it, restores the 13.xx firmware path, and layers the WebUI/FTP/M.2 tooling on top.
 
 ## Firmware
 
-- **13.60 only.** The payload refuses to run on any other firmware.
+| Firmware | Status | Notes |
+| --- | --- | --- |
+| **13.60** | ✅ Tested | Developed and verified on hardware (PS5 Phat & Slim). |
+| **13.20** | ⚠️ Untested | Offsets + 13xx shellcode restored from upstream. |
+| **13.00** | ⚠️ Untested | Offsets + 13xx shellcode restored from upstream. |
+
+Any other firmware is refused by the payload. The exploit used here is the same rest-mode `startup_mp` bug that [Byepervisor-Reborn](https://github.com/PS5Dev/Byepervisor-Reborn) targets; 13.00/13.20 are provided for parity with it but have not been validated on real hardware by this fork.
+
+## What's new in this fork
+
+- **Multi-firmware 13.xx support** — 13.00 / 13.20 / 13.60, selected automatically from the running firmware. The 13xx kernel shellcode is committed (`source/shellcode_kernel_13xx.c`), so a plain `make` still produces the payload — no sub-builds.
+- **Built-in WebUI** (served on **port 8080** while the payload runs, auto-boots after ~2 minutes):
+  - Detects boot files (`bzImage`, `initrd.img`, `cmdline.txt`) across USB search paths.
+  - OS-image picker, boot/install target selector and install-size field.
+  - File manager (list / upload / delete) for the boot directory.
+- **Anonymous FTP server** (**port 21**, rooted at the upload dir) so multi-GB `*.img` files can be copied to the console without the WebUI's HTTP upload limits.
+- **M.2 install tools** (`tools/`) that place the OS as a **`.img` file** on the internal NVMe SSD:
+  - `m2_init` — writes the hidden GPT (`--device`, `--size-gb`).
+  - `ps5-osinstall` — creates the data partition and copies the `.img` onto it (`--target m2`, `--img`, `--label`).
+  - `ps5-osexec` — kexec into a Linux root partition/label (raw-partition installs).
+- **Loop-mounted `.img` boot** — the initramfs `init` searches the M.2 (NVMe) first, then USB, loop-mounts the first `*.img` it finds and hands off to systemd.
 
 ## Requirements
 
-- **Required**: USB drive, minimum 64 GB (external SSD strongly recommended) to hold the Linux image.
+- **Required**: USB drive, minimum 64 GB (external SSD strongly recommended) holding the Linux image **and the boot files** (`bzImage`, `initrd.img`, `cmdline.txt`), which the payload reads from the USB root.
 - **Required**: USB keyboard/mouse (dongles supported).
-- **Optional**: USB WLAN adapter (Marvell chipsets only), Bluetooth dongle for DualSense, M.2 SSD for a dedicated Linux partition.
+- **Optional**: USB WLAN adapter (Marvell chipsets only), Bluetooth dongle for DualSense, internal M.2 SSD for a dedicated Linux `.img`.
 
 ## Configure PS5 settings
 
@@ -26,68 +44,79 @@ The exploit/kernel shellcode for 13.60 is committed directly (`source/shellcode_
 
 If you reset your PS5 settings or reinstall the firmware, reapply these.
 
-## Installation
+## Quick start
 
-### 1. Get a Linux image
+### Option A — boot from a USB image
 
-Download a pre-built image from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image/releases/tag/latest) (recommended: `ps5-ubuntu2604.img.xz`) and unpack the `.xz`. Or build your own with the `build_image.sh` script in that repo (Docker required).
+1. Get a Linux image from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image/releases/tag/latest) and unpack it.
+2. Flash it to USB (min 64 GB; external SSD recommended):
+   ```bash
+   sudo dd if=ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
+   ```
+3. Plug the USB into a supported port (front bottom **Type-C** or rear **Type-A**).
+4. Run your **13.00 / 13.20 / 13.60** kernel exploit to reach a payload loader, then send the payload:
+   ```bash
+   socat -t 99999999 - TCP:$PS5IP:9021 < ps5-linux-loader.elf
+   ```
+5. The console enters rest mode. Wait for the orange LED to stop blinking and turn static, then press power to boot Linux (LED turns **white** on success).
 
-### 2. Flash the image to USB
+### Option B — install the OS as a `.img` on the internal M.2
 
-Minimum 64 GB; external SSD strongly recommended.
-
-Linux/macOS:
-
-```bash
-# check the drive name with lsblk / diskutil list
-sudo dd if=ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
-```
-
-Windows: use [Balena Etcher](https://etcher.balena.io/).
-
-### 3. Plug the USB drive into your PS5
-
-Supported boot ports: front bottom **Type-C**, and rear **Type-A**. The front top Type-A is USB 2.0 (slower, not recommended).
-
-### 4. Run the 13.60 jailbreak and send the payload
-
-Run your preferred 13.60 kernel exploit (e.g. via your usual 13.60 jailbreak chain), then send the payload:
+The M.2 flow keeps the OS as a single file inside a data partition, which is more resilient to the PS5 touching the drive than a raw root partition. **Format the M.2 in the PS5 first**, then from a running Linux:
 
 ```bash
-socat -t 99999999 - TCP:$PS5IP:9021 < ps5-linux-loader.elf
+# write the hidden GPT (adjust size as needed)
+sudo ./m2_init --device /dev/nvme0n1 --size-gb 128
+
+# create the data partition and copy the image onto it as a file
+sudo PATH=$PWD:$PATH ./ps5-osinstall --img /mnt/usb/ps5-arch.img \
+     --target m2 --device /dev/nvme0n1 --size-gb 128 --label PS5M2 --yes
 ```
 
-If successful, the console goes into rest mode. Wait for the orange LED to stop blinking and become static, then press the power button to boot into Linux. On a successful boot the **LED turns white**. If it boots back into the PS5 OS you pressed the button too early, or rest-mode features were not enabled. If it freezes instead of entering rest mode, an incompatible HEN/kstuff may be enabled — disable it.
+`ps5-osinstall` writes a `ps5-os-image` marker describing the install. On boot the initramfs finds the `.img` on the M.2, loop-mounts it, and systemd resumes onto the image's own root filesystem. Boot files (`bzImage` / `initrd.img` / `cmdline.txt`) still come from the USB.
 
-If the LED is white but the screen is black:
+> ⚠️ **Coexistence caveat.** The official guide treats the M.2 as Linux-exclusive. A PS5 **soft format** is expected to leave the Linux data partition (and therefore the `.img`) intact, but a **repair / hard format will erase it**. Back up your image.
 
-- Try removing the `video=DP-1:1920x1080@60` line in `cmdline.txt`.
-- Toggle HDCP on/off.
-- Try different monitors/capture cards and resolutions.
-- Try `amdgpu.force_1080p=1` in `cmdline.txt` on the FAT32 partition.
+## The WebUI
+
+While the payload runs it serves a page on `http://$PS5IP:8080` and an anonymous FTP server on `ftp://$PS5IP:21`. Use the WebUI to:
+
+- review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
+- pick the OS image and the boot/install target;
+- upload or delete files in the boot directory.
+
+If you don't submit anything within ~2 minutes it boots with the detected defaults. Large images can be pushed over FTP into the same directory.
 
 ## Building from source
 
 Install the [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk), then:
 
 ```bash
-git clone <this-repo>
-cd <this-repo>
+git clone https://github.com/TheRealRexo/PS5-Linux-Loader
+cd PS5-Linux-Loader
 make
 ```
 
-The payload is written to `bin/ps5-linux-loader.elf`. A plain `make` is sufficient — there are no sub-builds.
+The payload is written to `bin/ps5-linux-loader.elf`. A plain `make` is sufficient — the 13xx kernel shellcode is committed, so there are no sub-builds.
 
-## After first boot
+## Repository layout
 
-See the upstream [ps5-linux README](https://github.com/ps5-linux/ps5-linux-loader) for the full post-install guide: disabling the screensaver, holding kernel packages against updates, installing Firefox/mesa, `ps5-linux-tools`, WLAN drivers, M.2 setup, and fan/boost control. Those steps are unchanged.
+```
+source/         payload sources (main, hv_defeat_13xx, prepare_resume, offsets, webui, ftp, ...)
+include/        headers
+shellcode_1360.c        committed 13.60 kernel + AP shellcode
+shellcode_kernel_13xx.c committed 13.00/13.20 kernel shellcode (built from upstream FW_13XX_PORT)
+tools/          m2_init, ps5-osinstall, ps5-osexec, inject-os-image.sh
+.github/        CI that assembles the bootable USB payload/initrd
+```
 
 ## FAQ
 
-- **Q: Will >=8.00 firmwares be supported?** A: No.
-- **Q: Can I dual-boot Linux and PS5 OS?** A: No — this is a soft-mod; re-run the exploit to boot Linux.
-- **Q: Can I continue using my PS5 if I install Linux?** A: Yes, the internal SSD is not modified.
-- **Q: After reboot I get a "Repairing" / "Your PS5 wasn't turned off properly" screen, is that normal?** A: Yes, and it's harmless.
+- **Q: Which firmwares work?** A: 13.00, 13.20, 13.60 (13.60 tested; 13.00/13.20 untested).
+- **Q: Can I dual-boot Linux and the PS5 OS?** A: Not simultaneously — this is a soft-mod; re-run the exploit to boot Linux.
+- **Q: Can I keep using my PS5 normally?** A: Yes; the exploit is in-memory and does not modify the PS5 OS.
+- **Q: After reboot I get a "Repairing" / "Your PS5 wasn't turned off properly" screen.** A: Expected, and harmless.
+- **Q: LED is white but the screen is black.** A: Try removing `video=DP-1:1920x1080@60` from `cmdline.txt`, toggle HDCP, try another display/capture device, or add `amdgpu.force_1080p=1`.
 
 ## Credits
 
@@ -101,7 +130,7 @@ Upstream [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loa
 - [cragson](https://github.com/cragson) — HV exploit implementation
 - [john-tornblom](https://github.com/john-tornblom) — PS5 SDK
 
-See the upstream repository for the complete list.
+Related work: [PS5Dev/Byepervisor-Reborn](https://github.com/PS5Dev/Byepervisor-Reborn) (13.xx rest-mode hypervisor exploit). See the upstream repository for the complete contributor list.
 
 ## License
 

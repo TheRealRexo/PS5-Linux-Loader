@@ -1,0 +1,78 @@
+#!/bin/bash
+# ps5-osexec - kexec into an installed ps5-linux root (internal M.2 or USB).
+#
+# Loads the kernel + initrd found in the target root's /boot and boots with
+# root=LABEL=<label>, so the USB FAT32 partition keeps providing the boot files
+# while the root filesystem lives on the M.2.
+set -euo pipefail
+
+LABEL=""
+DEVICE=""
+MNT="/tmp/ps5_kexec_mnt"
+DRY_RUN=0
+
+usage() {
+    cat <<EOF
+Usage: ps5-osexec [--label LABEL | --device /dev/nvme0n1p1] [--dry-run]
+
+  --label LABEL    root filesystem label to boot (e.g. arch-m2)
+  --device PATH    root partition to boot (label auto-detected)
+  --dry-run        print the kexec command without running it
+  -h, --help       show this help
+
+With no arguments the default M.2 partition (/dev/nvme0n1p1) is used.
+EOF
+    exit "${1:-1}"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --label) LABEL="${2:-}"; shift 2 ;;
+        --device) DEVICE="${2:-}"; shift 2 ;;
+        --dry-run) DRY_RUN=1; shift ;;
+        -h|--help) usage 0 ;;
+        *) echo "unknown argument: $1" >&2; usage ;;
+    esac
+done
+
+[ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
+
+if [ -z "$DEVICE" ]; then
+    if [ -n "$LABEL" ]; then
+        DEVICE="$(blkid -L "$LABEL")" || true
+        [ -n "$DEVICE" ] || { echo "no partition with LABEL=$LABEL" >&2; exit 1; }
+    else
+        DEVICE="/dev/nvme0n1p1"
+    fi
+fi
+
+[ -b "$DEVICE" ] || { echo "not a block device: $DEVICE" >&2; exit 1; }
+[ -n "$LABEL" ] || LABEL="$(blkid -s LABEL -o value "$DEVICE")"
+[ -n "$LABEL" ] || { echo "could not determine label for $DEVICE" >&2; exit 1; }
+
+mkdir -p "$MNT"
+mount -o ro "$DEVICE" "$MNT"
+trap 'umount "$MNT" 2>/dev/null || true' EXIT
+
+VMLINUZ="$MNT/boot/vmlinuz"
+INITRD="$MNT/boot/initrd.img"
+if [ ! -f "$VMLINUZ" ]; then
+    VMLINUZ="$(ls -v "$MNT"/boot/vmlinuz* 2>/dev/null | tail -n1 || true)"
+    INITRD="$(ls -v "$MNT"/boot/initrd.img* 2>/dev/null | tail -n1 || true)"
+fi
+[ -n "$VMLINUZ" ] && [ -f "$VMLINUZ" ] || { echo "no kernel in $DEVICE:/boot" >&2; exit 1; }
+[ -n "$INITRD" ] && [ -f "$INITRD" ] || { echo "no initrd in $DEVICE:/boot" >&2; exit 1; }
+
+CMDLINE="$(sed -e "s|root=[^ ]*|root=LABEL=$LABEL|g" /proc/cmdline | xargs)"
+echo ">> device:  $DEVICE ($LABEL)"
+echo ">> kernel:  $VMLINUZ"
+echo ">> initrd:  $INITRD"
+echo ">> cmdline: $CMDLINE"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "(dry-run) kexec -l $VMLINUZ --initrd=$INITRD --append=\"$CMDLINE\""
+    exit 0
+fi
+
+kexec -l "$VMLINUZ" --initrd="$INITRD" --append="$CMDLINE"
+systemctl kexec -i

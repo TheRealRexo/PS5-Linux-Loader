@@ -1,0 +1,168 @@
+#!/bin/bash
+# ps5-osinstall - put a ps5-linux "OS image" (.img) onto the internal M.2 / USB.
+#
+# Runs *inside booted Linux* (the PS5 OS never exposes the M.2 to the payload).
+# The OS is stored as a single .img FILE (exactly like on the USB), not as a raw
+# root partition: the target partition is formatted as a plain data filesystem
+# and the image file is copied into it. The loader's /init loop-mounts that .img
+# at boot, so the OS stays a file rather than a foreign Linux root partition the
+# PS5 might decide to "repair".
+#
+# Targets:
+#   m2   -> internal M.2 slot (m2_init writes the shifted/hidden GPT first)
+#   usb  -> external USB / M.2-in-enclosure (existing partition, no GPT magic)
+set -euo pipefail
+
+TARGET="m2"
+DEVICE=""
+IMG=""
+SIZE_GB=""
+PART_LABEL=""
+ASSUME_YES=0
+
+usage() {
+    cat <<EOF
+Usage: ps5-osinstall --img <os.img> [options]
+
+  --img PATH      OS image to install (required), e.g. ps5-arch.img
+  --target m2     internal M.2 slot (default)
+  --target usb    external USB drive / M.2 enclosure
+  --device PATH   target block device
+                    m2 : whole disk, default /dev/nvme0n1
+                    usb: existing partition, e.g. /dev/sdb1
+  --size-gb N     size of the Linux partition in GiB (default: whole usable disk)
+  --label NAME    label for the data partition holding the .img (default PS5M2)
+  --yes           do not prompt
+  -h, --help      show this help
+EOF
+    exit "${1:-1}"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --img) IMG="${2:-}"; shift 2 ;;
+        --target) TARGET="${2:-}"; shift 2 ;;
+        --device) DEVICE="${2:-}"; shift 2 ;;
+        --size-gb) SIZE_GB="${2:-}"; shift 2 ;;
+        --label) PART_LABEL="${2:-}"; shift 2 ;;
+        -y|--yes) ASSUME_YES=1; shift ;;
+        -h|--help) usage 0 ;;
+        *) echo "unknown argument: $1" >&2; usage ;;
+    esac
+done
+
+[ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
+[ -n "$IMG" ] || { echo "missing --img" >&2; usage; }
+[ -f "$IMG" ] || { echo "image not found: $IMG" >&2; exit 1; }
+
+SRC_MNT="/mnt/ps5_os_src"
+DST_MNT="/mnt/ps5_os_dst"
+LOOP=""
+SRC_PART=""
+
+cleanup() {
+    set +e
+    mountpoint -q "$SRC_MNT" && umount -R "$SRC_MNT"
+    mountpoint -q "$DST_MNT" && umount -R "$DST_MNT"
+    [ -n "$LOOP" ] && losetup -d "$LOOP" 2>/dev/null
+}
+trap cleanup EXIT
+
+# ---- resolve target partition -----------------------------------------------
+case "$TARGET" in
+    m2)
+        : "${DEVICE:=/dev/nvme0n1}"
+        [ -b "$DEVICE" ] || { echo "block device not found: $DEVICE" >&2; exit 1; }
+        if [ -b "${DEVICE}p1" ]; then
+            echo ">> ${DEVICE}p1 already present; skipping m2_init"
+        else
+            echo ">> initializing hidden PS5 GPT on $DEVICE"
+            if [ -n "$SIZE_GB" ]; then
+                m2_init --device "$DEVICE" --size-gb "$SIZE_GB"
+            else
+                m2_init --device "$DEVICE"
+            fi
+        fi
+        # The kernel only exposes the shifted GPT on a BLKRRPART re-scan.
+        # partx/parted parse the standard LBA-1 table and won't see it, so we
+        # use blockdev --rereadpt / partprobe and retry.
+        for _ in $(seq 1 15); do
+            [ -b "${DEVICE}p1" ] && break
+            blockdev --rereadpt "$DEVICE" 2>/dev/null || true
+            partprobe "$DEVICE" 2>/dev/null || true
+            sleep 1
+        done
+        DST_PART="${DEVICE}p1"
+        ;;
+    usb)
+        [ -n "$DEVICE" ] || { echo "--device required for --target usb" >&2; exit 1; }
+        [ -b "$DEVICE" ] || { echo "block device not found: $DEVICE" >&2; exit 1; }
+        DST_PART="$DEVICE"
+        ;;
+    *) echo "unknown target: $TARGET" >&2; exit 1 ;;
+esac
+
+echo ">> target partition: $DST_PART"
+[ -b "$DST_PART" ] || { echo "target partition not found: $DST_PART" >&2; exit 1; }
+
+# ---- read the OS image's root label (for the boot cmdline hint) -------------
+echo ">> attaching $IMG to read its root label"
+LOOP="$(losetup -Pf --show "$IMG")"
+for _ in $(seq 1 10); do [ -b "${LOOP}p1" ] && break; sleep 1; done
+
+SRC_PART=""
+for p in "${LOOP}"p*; do
+    [ -b "$p" ] || continue
+    if [ -z "$SRC_PART" ] && [ "$(blkid -s TYPE -o value "$p" 2>/dev/null)" = "ext4" ]; then
+        SRC_PART="$p"
+    fi
+done
+[ -n "$SRC_PART" ] || { echo "no ext4 root filesystem found in $IMG" >&2; exit 1; }
+SRC_LABEL="$(blkid -s LABEL -o value "$SRC_PART" 2>/dev/null || true)"
+echo ">> image root: $SRC_PART (LABEL=${SRC_LABEL:-?})"
+losetup -d "$LOOP" 2>/dev/null || true
+LOOP=""
+
+# The data-partition label on the target (holds the .img file). Kept distinct
+# from the .img's own root label so there is no ambiguity at boot.
+IMG_BASE="$(basename "$IMG")"
+if [ -z "$PART_LABEL" ]; then
+    if [ "$TARGET" = "usb" ]; then PART_LABEL="PS5USB"; else PART_LABEL="PS5M2"; fi
+fi
+
+if [ "$ASSUME_YES" -ne 1 ]; then
+    echo
+    echo "This will ERASE $DST_PART, format it, and copy '$IMG_BASE' onto it"
+    echo "as a file (so /init can loop-mount it)."
+    printf "Continue? [y/N] "
+    read -r ans
+    case "$ans" in y|Y|yes) ;; *) echo "aborted."; exit 1 ;; esac
+fi
+
+# ---- format + copy the .img FILE (not a rootfs) -----------------------------
+mkdir -p "$DST_MNT"
+umount -l "$DST_PART" 2>/dev/null || true
+
+echo ">> mkfs.ext4 -L $PART_LABEL $DST_PART"
+mkfs.ext4 -F -L "$PART_LABEL" "$DST_PART" >/dev/null
+
+mount "$DST_PART" "$DST_MNT"
+
+echo ">> copying $IMG_BASE ($(du -h "$IMG" | cut -f1)) - this takes a while"
+cp "$IMG" "$DST_MNT/$IMG_BASE"
+
+echo ">> marking as an OS image"
+{
+    echo "target=$TARGET"
+    echo "partition_label=$PART_LABEL"
+    echo "device=$DST_PART"
+    echo "image=$IMG_BASE"
+    echo "root_label=${SRC_LABEL:-}"
+    echo "installed_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > "$DST_MNT/ps5-os-image"
+
+sync
+umount "$DST_MNT"
+
+echo ">> done. '$IMG_BASE' is on $DST_PART (LABEL=$PART_LABEL)"
+echo ">> /init boots it automatically; cmdline root=LABEL=${SRC_LABEL:-arch}"

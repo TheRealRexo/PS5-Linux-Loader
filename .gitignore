@@ -1,3 +1,5 @@
 bin/
 *.elf
 *.o
+tools/m2_init
+.DS_Store

@@ -541,6 +541,45 @@ static void render_page(int fd, const struct webui_settings *s,
                "<button class='btn alt' type=submit>Boot with defaults"
                "</button></form>");
 
+  /* Hardware / driver support table */
+  {
+    int wifi_fw = 0;
+    for (int i = 0; i < s->num_paths; i++) {
+      char full[256];
+      struct stat st;
+      snprintf(full, sizeof(full), "%slib/nxp/pcieuartiw620_combo_v1.bin",
+               s->paths[i]);
+      /* ensure trailing slash handling */
+      if (s->paths[i][0] && s->paths[i][strlen(s->paths[i]) - 1] != '/')
+        snprintf(full, sizeof(full), "%s/lib/nxp/pcieuartiw620_combo_v1.bin",
+                 s->paths[i]);
+      if (stat(full, &st) == 0 && S_ISREG(st.st_mode)) {
+        wifi_fw = 1;
+        break;
+      }
+    }
+    send_str(fd, "<h2>Hardware / driver support</h2><table>"
+                 "<tr><td>GPU</td><td>AMD Radeon (Oberon)</td>"
+                 "<td>amdgpu</td><td>Supported</td></tr>"
+                 "<tr><td>CPU</td><td>AMD Zen 2</td>"
+                 "<td>-</td><td>Supported</td></tr>"
+                 "<tr><td>WiFi</td><td>MediaTek MT7921 (pcieuartiw620)</td>"
+                 "<td>mt7921e</td><td>");
+    send_str(fd, wifi_fw ? "Firmware present" : "Firmware missing");
+    send_str(fd, "</td></tr>"
+                 "<tr><td>Bluetooth</td><td>MediaTek MT7921</td>"
+                 "<td>btusb</td><td>Supported</td></tr>"
+                 "<tr><td>Ethernet</td><td>Realtek RTL8111/8168</td>"
+                 "<td>r8169</td><td>Supported</td></tr>"
+                 "<tr><td>Audio</td><td>AMD ACP</td>"
+                 "<td>snd_acp3x</td><td>Supported</td></tr>"
+                 "<tr><td>NVMe (M.2)</td><td>-</td>"
+                 "<td>nvme</td><td>Supported</td></tr>"
+                 "<tr><td>USB</td><td>-</td>"
+                 "<td>xhci</td><td>Supported</td></tr>"
+                 "</table>");
+  }
+
   send_str(fd, "<h2>Files</h2>"
                "<form method=get action=/files class=row>"
                "<input type=text name=dir value='");

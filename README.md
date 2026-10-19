@@ -32,9 +32,9 @@ Any other firmware is refused by the payload. The exploit used here is the same 
 
 ## Requirements
 
-- **Required**: USB drive, minimum 64 GB (external SSD strongly recommended) holding the Linux image **and the boot files** (`bzImage`, `initrd.img`, `cmdline.txt`), which the payload reads from the USB root.
-- **Required**: USB keyboard/mouse (dongles supported).
-- **Optional**: USB WLAN adapter (Marvell chipsets only), Bluetooth dongle for DualSense, internal M.2 SSD for a dedicated Linux `.img`.
+- **Required**: USB drive, minimum 16 GB (external SSD strongly recommended) holding the Linux image **and the boot files** (`bzImage`, `initrd.img`, `cmdline.txt`), which the payload reads from the USB root.
+- **Required**: USB keyboard (dongles supported).
+- **Optional**: USB WLAN adapter (Marvell chipsets only), USB mouse, Bluetooth dongle for DualSense, internal M.2 SSD for a dedicated Linux `.img`.
 
 ## Configure PS5 settings
 
@@ -49,7 +49,7 @@ If you reset your PS5 settings or reinstall the firmware, reapply these.
 ### Option A — boot from a USB image
 
 1. Get a Linux image from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image/releases/tag/latest) and unpack it.
-2. Flash it to USB (min 64 GB; external SSD recommended):
+2. Flash it to USB (min 16 GB; external SSD recommended):
    ```bash
    sudo dd if=ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
    ```

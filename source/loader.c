@@ -12,8 +12,8 @@
 
 const char *file_paths[] = {
     "/mnt/usb0/",           "/mnt/usb1/",           "/mnt/usb2/",
-    "/mnt/usb3/",           "/mnt/usb0/PS5/Linux/", "/mnt/usb1/PS5/Linux/",
-    "/mnt/usb2/PS5/Linux/", "/mnt/usb3/PS5/Linux/",
+    "/mnt/usb3/",           "/mnt/ext1/",           "/mnt/usb0/PS5/Linux/",
+    "/mnt/usb1/PS5/Linux/", "/mnt/usb2/PS5/Linux/", "/mnt/usb3/PS5/Linux/",
 };
 
 /* Runtime search paths / overrides, optionally set by the WebUI before boot. */
@@ -29,6 +29,7 @@ static char webui_image[WEBUI_VAL_LEN] = {0};
 static char webui_target[64] = {0};
 static int webui_size_gb = 0;
 static int webui_mode = WEBUI_MODE_BOOT;
+static int webui_vram_mb = 0;
 
 long find_and_get_size_of_file(const char *filename, char *found_path);
 int find_and_read_file(const char *filename, void *buf, size_t bufsize);
@@ -82,12 +83,14 @@ void loader_set_boot_from_webui(const struct webui_settings *s) {
   webui_target[0] = 0;
   webui_size_gb = 0;
   webui_mode = WEBUI_MODE_BOOT;
+  webui_vram_mb = 0;
   if (!s)
     return;
   snprintf(webui_image, sizeof(webui_image), "%s", s->image);
   snprintf(webui_target, sizeof(webui_target), "%s", s->target);
   webui_size_gb = s->size_gb;
   webui_mode = s->mode;
+  webui_vram_mb = s->vram_mb;
 }
 
 /* Look up `filename` in a packed key\\0val\\0 list. Returns val or NULL. */
@@ -257,24 +260,29 @@ int fetch_linux(struct linux_info *info) {
   }
 
   size_t vram_size;
-  char buf_vram[16] = {};
-  int ret = find_and_read_file("vram.txt", buf_vram, sizeof(buf_vram) - 1);
-  if (ret < 0) {
-    printf(
-        "File vram.txt not found at default paths - Using static fallback\n");
-    vram_size = VRAM_SIZE;
+  if (webui_vram_mb > 0) {
+    vram_size = (size_t)webui_vram_mb * 1024 * 1024;
+    printf("Using WebUI VRAM setting: %d MiB\n", webui_vram_mb);
   } else {
-    trim_newline(buf_vram);
-    vram_size = strtoull(buf_vram, NULL, 16);
-    if (vram_size == 0) {
-      printf("Seems like the configured vram value is wrong - Using static "
-             "fallback\n");
+    char buf_vram[16] = {};
+    int ret = find_and_read_file("vram.txt", buf_vram, sizeof(buf_vram) - 1);
+    if (ret < 0) {
+      printf(
+          "File vram.txt not found at default paths - Using static fallback\n");
       vram_size = VRAM_SIZE;
+    } else {
+      trim_newline(buf_vram);
+      vram_size = strtoull(buf_vram, NULL, 16);
+      if (vram_size == 0) {
+        printf("Seems like the configured vram value is wrong - Using static "
+               "fallback\n");
+        vram_size = VRAM_SIZE;
+      }
     }
   }
 
   char cmdline[2048] = {};
-  ret = find_and_read_file("cmdline.txt", cmdline, sizeof(cmdline) - 1);
+  int ret = find_and_read_file("cmdline.txt", cmdline, sizeof(cmdline) - 1);
   if (ret < 0) {
     printf("File cmdline.txt not found at default paths - Using static "
            "fallback\n");

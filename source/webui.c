@@ -23,8 +23,8 @@
 
 static const char *DEFAULT_PATHS[] = {
     "/mnt/usb0/",           "/mnt/usb1/",           "/mnt/usb2/",
-    "/mnt/usb3/",           "/mnt/usb0/PS5/Linux/", "/mnt/usb1/PS5/Linux/",
-    "/mnt/usb2/PS5/Linux/", "/mnt/usb3/PS5/Linux/",
+    "/mnt/usb3/",           "/mnt/ext1/",           "/mnt/usb0/PS5/Linux/",
+    "/mnt/usb1/PS5/Linux/", "/mnt/usb2/PS5/Linux/", "/mnt/usb3/PS5/Linux/",
 };
 
 static const char *TARGETS[][2] = {
@@ -42,6 +42,7 @@ void webui_settings_init(struct webui_settings *s) {
   snprintf(s->target, sizeof(s->target), "none");
   s->mode = WEBUI_MODE_BOOT;
   s->size_gb = 0;
+  s->vram_mb = 0;
   /* default upload / file-manager dir: first existing search path */
   for (int i = 0; i < s->num_paths; i++) {
     struct stat st;
@@ -507,6 +508,14 @@ static void render_page(int fd, const struct webui_settings *s,
     send_str(fd, num);
   }
   send_str(fd, "'>"
+               "<label>VRAM&nbsp;(MiB, 0 = auto)</label>"
+               "<input type=number name=vram_mb min=0 value='");
+  {
+    char num[16];
+    snprintf(num, sizeof(num), "%d", s->vram_mb);
+    send_str(fd, num);
+  }
+  send_str(fd, "'>"
                "<label class=opt><input type=radio name=mode value=boot");
   if (s->mode == WEBUI_MODE_BOOT)
     send_str(fd, " checked");
@@ -904,6 +913,8 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
         snprintf(s->target, sizeof(s->target), "%s", val);
       if (form_get(body, "size_gb", val, sizeof(val)))
         s->size_gb = atoi(val);
+      if (form_get(body, "vram_mb", val, sizeof(val)))
+        s->vram_mb = atoi(val);
       if (form_get(body, "mode", val, sizeof(val)))
         s->mode = strcmp(val, "install") ? WEBUI_MODE_BOOT : WEBUI_MODE_INSTALL;
 

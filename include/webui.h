@@ -31,6 +31,9 @@ struct webui_settings {
   int size_gb;                /* install size in GB, 0 = image's natural size */
   int mode;                   /* enum webui_mode */
 
+  /* VRAM size in MiB for the booted Linux; 0 = use vram.txt / default. */
+  int vram_mb;
+
   /* Directory for uploads / file-manager operations. */
   char upload_dir[WEBUI_PATH_LEN];
 

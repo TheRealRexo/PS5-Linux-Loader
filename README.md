@@ -85,7 +85,8 @@ While the payload runs it serves a page on `http://$PS5IP:8080` and an anonymous
 
 - review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
 - pick the OS image and the boot/install target, and set the **VRAM size** (MiB, 0 = auto);
-- upload or delete files in the boot directory (including to `/mnt/ext1` for USB-free setups).
+- upload or delete files in the boot directory (including to `/mnt/ext1` for USB-free setups);
+- view the **Hardware / driver support** table (GPU, WiFi/Bluetooth chipset, Ethernet, audio, NVMe, USB) with chipset names and driver status, including whether the PS5 WiFi firmware has been dumped.
 
 If you don't submit anything within ~2 minutes it boots with the detected defaults. Large images can be pushed over FTP into the same directory.
 

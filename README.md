@@ -96,7 +96,7 @@ If you don't submit anything within ~2 minutes it boots with the detected defaul
 Each tagged release ships:
 
 - `ps5-linux-loader.elf` + `m2_init` / `ps5-osinstall` / `ps5-osexec` (with checksums).
-- Wrapped OS images `ps5-<distro>-os.img.xz` (official ps5-linux images with the M.2/storage tooling baked into the root filesystem) for `ubuntu2604`, `arch`, `cachyos`, `fedora`, `proxmox`, `debian`, `bazzite`, `bazzite-deck`, `steamos` (distros whose wrapped image exceeds 2 GB are listed in `large.txt` instead of being attached).
+- Wrapped OS images `ps5-<distro>-os.img.xz` (official ps5-linux images with the M.2/storage tooling baked into the root filesystem) for `ubuntu2604`, `arch`, `cachyos`, `fedora`, `proxmox`, `debian`, `bazzite`, `bazzite-deck`, `steamos`
 - `ps5-<distro>-boot.tar.gz` containing `bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt` for USB-free / manual setups.
 
 ## Building from source

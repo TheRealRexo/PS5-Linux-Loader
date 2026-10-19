@@ -149,7 +149,7 @@ jobs:
           ls -lh "$name"
 
       - name: Inject tooling + marker
-        run: sudo ./tools/inject-os-image.sh --img "ps5-${{ matrix.distro }}-os.img"
+        run: sudo bash ./tools/inject-os-image.sh --img "ps5-${{ matrix.distro }}-os.img"
 
       - name: Recompress + checksum
         run: |

@@ -47,6 +47,23 @@ if ! ls /dev/nvme*n* >/dev/null 2>&1; then
 fi
 ls /dev/nvme*n* >/dev/null 2>&1 && log "nvme: devices present" || log "nvme: no devices"
 
+# The PS5 uses a shifted/hidden GPT; the kernel only exposes nvme0n1p* on a
+# BLKRRPART re-scan (partprobe/blockdev), not on a plain modprobe.
+if ls /dev/nvme*n* >/dev/null 2>&1; then
+    for _ in $(seq 1 20); do
+        [ -b /dev/nvme0n1p1 ] && break
+        for d in /dev/nvme*n*; do
+            [ -b "$d" ] || continue
+            case "$d" in *p*) continue;; esac
+            blockdev --rereadpt "$d" 2>/dev/null || true
+            partprobe "$d" 2>/dev/null || true
+        done
+        [ -b /dev/nvme0n1p1 ] && break
+        sleep 1
+    done
+    ls /dev/nvme0n1p1 >/dev/null 2>&1 && log "nvme0n1p1: present" || log "nvme0n1p1: MISSING"
+fi
+
 USB_MNT=/mnt/usb
 mkdir -p "$USB_MNT"
 

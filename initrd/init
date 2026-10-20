@@ -1,0 +1,175 @@
+#!/bin/sh
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sysfs /sys 2>/dev/null
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+
+LOG=""
+log() {
+    echo "loopinit: $*"
+    if [ -n "$LOG" ]; then
+        echo "$*" >> "$LOG" 2>/dev/null
+        sync
+    fi
+}
+
+log "=== loopinit START (img-on-m2 build) ==="
+log "cmdline: $(cat /proc/cmdline 2>/dev/null)"
+
+# --- params passed by the WebUI via the loader cmdline ---
+WANT=""; WANTBASE=""; PS5_TARGET=""; PS5_SIZE=""; PS5_MODE=""
+for p in $(cat /proc/cmdline 2>/dev/null); do
+    case "$p" in
+        ps5.image=*)  WANT="${p#ps5.image=}" ;;
+        ps5.target=*) PS5_TARGET="${p#ps5.target=}" ;;
+        ps5.size_gb=*) PS5_SIZE="${p#ps5.size_gb=}" ;;
+        ps5.mode=*)   PS5_MODE="${p#ps5.mode=}" ;;
+    esac
+done
+[ -n "$WANT" ] && WANTBASE="${WANT##*/}"
+log "webui: image='$WANT' target='$PS5_TARGET' size='$PS5_SIZE' mode='$PS5_MODE'"
+
+# --- load filesystems / storage drivers we may need -------------------------
+modprobe exfat 2>/dev/null
+if ! grep -q exfat /proc/filesystems 2>/dev/null; then
+    insmod /usr/lib/modules/7.1.7/kernel/fs/exfat/exfat.ko 2>/dev/null
+fi
+grep -q exfat /proc/filesystems 2>/dev/null && log "exfat: LOADED" || log "exfat: NOT loaded"
+
+# internal M.2 (nvme) - core first, then the host driver
+modprobe nvme-core 2>/dev/null
+modprobe nvme 2>/dev/null
+if ! ls /dev/nvme*n* >/dev/null 2>&1; then
+    insmod /usr/lib/modules/7.1.7/kernel/drivers/nvme/host/nvme-core.ko 2>/dev/null
+    insmod /usr/lib/modules/7.1.7/kernel/drivers/nvme/host/nvme.ko 2>/dev/null
+fi
+ls /dev/nvme*n* >/dev/null 2>&1 && log "nvme: devices present" || log "nvme: no devices"
+
+USB_MNT=/mnt/usb
+mkdir -p "$USB_MNT"
+
+# look for an OS image (ps5-arch.img, *.img). Prefer the internal M.2 (nvme)
+# so the OS lives on the SSD when present; fall back to USB / SD devices.
+IMG=""
+found=0
+saw_disk=0
+n=0
+
+scan_dev() {
+    dev="$1"
+    [ -b "$dev" ] || return 1
+    umount "$USB_MNT" 2>/dev/null
+    for fs in ext4 vfat exfat; do
+        if mount -t "$fs" "$dev" "$USB_MNT" 2>/dev/null; then
+            LOG="$USB_MNT/loopinit.log"
+            log "MOUNTED $dev as $fs"
+            if [ -n "$WANTBASE" ] && [ -f "$USB_MNT/$WANTBASE" ]; then
+                IMG="$USB_MNT/$WANTBASE"; found=1
+            elif [ -f "$USB_MNT/ps5-arch.img" ]; then
+                IMG="$USB_MNT/ps5-arch.img"; found=1
+            else
+                for c in "$USB_MNT"/*.img; do
+                    [ -f "$c" ] && { IMG="$c"; found=1; break; }
+                done
+            fi
+            if [ "$found" -eq 1 ]; then
+                log "FOUND $IMG on $dev"
+                return 0
+            fi
+            log "no os image on $dev"
+            umount "$USB_MNT" 2>/dev/null
+            LOG=""
+        fi
+    done
+    return 1
+}
+
+while [ "$n" -lt 30 ] && [ "$found" -eq 0 ]; do
+    # internal M.2 (nvme) first: partitions, then whole disk
+    for dev in /dev/nvme0n1p* /dev/nvme0n1 /dev/nvme1n1p* /dev/nvme1n1; do
+        [ -b "$dev" ] || continue
+        saw_disk=1
+        scan_dev "$dev" && break
+    done
+    [ "$found" -eq 1 ] && break
+    # then USB / SD: partitions (2-digit, 1-digit), then whole disk
+    for dev in /dev/sd[a-z][0-9][0-9] /dev/sd[a-z][0-9] /dev/sd[a-z]; do
+        [ -b "$dev" ] || continue
+        saw_disk=1
+        scan_dev "$dev" && break
+    done
+    [ "$found" -eq 0 ] && { n=$((n+1)); sleep 1; }
+done
+
+# enum fail: hang (black screen), else hand to systemd
+[ "$saw_disk" -eq 0 ] && exec sleep 99999
+
+LOOP=""
+if [ -n "$IMG" ]; then
+    log "attaching loop..."
+    for d in /dev/loop0 /dev/loop1 /dev/loop2; do
+        if losetup -P "$d" "$IMG" 2>>"$LOG"; then
+            LOOP="$d"; log "losetup OK -> $d"; break
+        fi
+        log "losetup FAILED on $d"
+    done
+    [ -n "$LOOP" ] && sleep 2
+
+    # ---- stage payload-dumped WiFi firmware into the booted system ----
+    FWSRC="$USB_MNT/lib/nxp/pcieuartiw620_combo_v1.bin"
+    if [ ! -f "$FWSRC" ]; then
+        for dev in /dev/sd[a-z][0-9][0-9] /dev/sd[a-z][0-9] /dev/sd[a-z]; do
+            [ -b "$dev" ] || continue
+            mkdir -p /mnt/fw
+            if mount -t exfat "$dev" /mnt/fw 2>/dev/null || mount -t vfat "$dev" /mnt/fw 2>/dev/null; then
+                if [ -f /mnt/fw/lib/nxp/pcieuartiw620_combo_v1.bin ]; then
+                    FWSRC="/mnt/fw/lib/nxp/pcieuartiw620_combo_v1.bin"
+                    log "fw found on $dev"
+                    break
+                fi
+                umount /mnt/fw 2>/dev/null
+            fi
+        done
+    fi
+    if [ -f "$FWSRC" ] && [ -n "$LOOP" ]; then
+        mkdir -p /mnt/tmp
+        i=0
+        while [ $i -lt 12 ] && [ ! -b "${LOOP}p1" ]; do i=$((i+1)); sleep 1; done
+        if [ -b "${LOOP}p1" ]; then
+            for part in "${LOOP}p1" "${LOOP}p2"; do
+                [ -b "$part" ] || continue
+                if mount -o rw "$part" /mnt/tmp 2>/dev/null; then
+                    mkdir -p /mnt/tmp/lib/firmware/nxp /mnt/tmp/lib/nxp 2>/dev/null
+                    cp "$FWSRC" /mnt/tmp/lib/firmware/nxp/ 2>/dev/null && log "fw -> $part:/lib/firmware/nxp"
+                    cp "$FWSRC" /mnt/tmp/lib/nxp/ 2>/dev/null && log "fw -> $part:/lib/nxp"
+                    sync
+                    umount /mnt/tmp 2>/dev/null
+                fi
+            done
+        else
+            log "no loop part nodes; trying offsets"
+            for off in 1048576 524288000; do
+                OL=$(losetup -f --show -o "$off" "$IMG" 2>/dev/null) || continue
+                if mount -o rw "$OL" /mnt/tmp 2>/dev/null; then
+                    mkdir -p /mnt/tmp/lib/firmware/nxp /mnt/tmp/lib/nxp 2>/dev/null
+                    cp "$FWSRC" /mnt/tmp/lib/firmware/nxp/ 2>/dev/null && log "fw -> off$off:/lib/firmware/nxp"
+                    cp "$FWSRC" /mnt/tmp/lib/nxp/ 2>/dev/null && log "fw -> off$off:/lib/nxp"
+                    sync
+                    umount /mnt/tmp 2>/dev/null
+                fi
+                losetup -d "$OL" 2>/dev/null
+            done
+        fi
+    fi
+
+    log "partitions: $(cat /proc/partitions 2>/dev/null | tr '\n' '|')"
+    log "by-label: $(ls -l /dev/disk/by-label/ 2>/dev/null | tr '\n' ';')"
+else
+    log "no img after $n polls"
+fi
+
+log "=== handoff to systemd ==="
+sync
+exec /usr/lib/systemd/systemd

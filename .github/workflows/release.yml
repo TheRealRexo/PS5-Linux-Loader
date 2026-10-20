@@ -165,7 +165,11 @@ jobs:
           done
           # per-distro initrds, if present
           for f in /tmp/bootmnt/initrd*.img; do
-            [ -f "$f" ] && cp "$f" bootfiles/
+            [ -f "$f" ] || continue
+            base=$(basename "$f")
+            cp "$f" "bootfiles/$base"
+            # Patch the initrd so the PS5 loop-mounts the .img at boot.
+            ./tools/patch-initrd.sh "bootfiles/$base" "bootfiles/$base"
           done
           sudo umount /tmp/bootmnt
           sudo losetup -d "$LOOP"

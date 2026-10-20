@@ -237,19 +237,25 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "PS5 Linux Loader release \`${{ needs.prepare.outputs.tag }}\`."
+            echo "PS5 Linux Loader release \`${{ needs.prepare.outputs.tag }}\` (commit \`${{ github.sha }}\`)."
             echo
             echo "Contains the loader payload (\`ps5-linux-loader.elf\`), the M.2/storage"
             echo "tooling (\`m2_init\`, \`ps5-osinstall\`, \`ps5-osexec\`), and wrapped"
-            echo ""OS images" (official ps5-linux images with the tooling baked in)."
+            echo "\"OS images\" (official ps5-linux images with the tooling baked in)."
             echo
-            echo "OS images attached to this release (<=2 GB):"
+            echo "The payload serves a WebUI on port 8080 with an OS-image picker,"
+            echo "install target/size selector, VRAM setting, file manager, anonymous"
+            echo "FTP (port 21), and a hardware/driver support table."
+            echo
+            echo "OS images attached to this release (wrapped, <=2 GB):"
             for f in dist/*.img.xz; do
               [ -f "$f" ] || continue
               echo "- $(basename "$f")"
             done
             echo
-            echo "Boot files (bzImage, initrd.img, cmdline.txt, vram.txt) for USB-free setups:"
+            echo "Boot files for USB-free setups (each tarball holds bzImage,"
+            echo "initrd.img, cmdline.txt, vram.txt; initrd.img is patched to"
+            echo "loop-mount the .img at boot):"
             for f in dist/*-boot.tar.gz; do
               [ -f "$f" ] || continue
               echo "- $(basename "$f")"
@@ -263,6 +269,7 @@ jobs:
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."
+            echo "WiFi firmware is dumped from the PS5 automatically during boot."
           } > dist/body.md
           cat dist/body.md
 

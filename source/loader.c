@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 const char *file_paths[] = {
@@ -30,6 +31,28 @@ static char webui_target[64] = {0};
 static int webui_size_gb = 0;
 static int webui_mode = WEBUI_MODE_BOOT;
 static int webui_vram_mb = 0;
+
+
+/* Read the ext4 volume label from a .img file (superblock at offset 1024). */
+static void read_ext4_label(const char *imgpath, char *label, size_t labsize) {
+  label[0] = 0;
+  if (!imgpath || !imgpath[0]) return;
+  int fd = open(imgpath, O_RDONLY);
+  if (fd < 0) return;
+  /* ext4 superblock starts at byte 1024 */
+  if (lseek(fd, 1024, SEEK_SET) < 0) { close(fd); return; }
+  unsigned char sb[1024];
+  if (read(fd, sb, sizeof(sb)) != (ssize_t)sizeof(sb)) { close(fd); return; }
+  close(fd);
+  /* s_volume_name is at offset 0x38 (56) within the superblock, 16 bytes */
+  size_t off = 0x38;
+  size_t n = 0;
+  while (n < 16 && n < labsize - 1 && sb[off + n] != 0) {
+    label[n] = (char)sb[off + n];
+    n++;
+  }
+  label[n] = 0;
+}
 
 long find_and_get_size_of_file(const char *filename, char *found_path);
 int find_and_read_file(const char *filename, void *buf, size_t bufsize);
@@ -289,6 +312,26 @@ int fetch_linux(struct linux_info *info) {
     strcpy(cmdline, CMD_LINE);
   } else {
     trim_newline(cmdline);
+  }
+
+  /* Regenerate the root label from the selected image so loop-mount matches. */
+  if (webui_image[0]) {
+    char lbl[32] = {0};
+    read_ext4_label(webui_image, lbl, sizeof(lbl));
+    if (lbl[0]) {
+      /* replace root=LABEL=... in cmdline */
+      char *p = strstr(cmdline, "root=LABEL=");
+      if (p) {
+        char *end = p + strlen("root=LABEL=");
+        char *space = strchr(end, ' ');
+        char buf[2048];
+        size_t pre = (size_t)(p - cmdline);
+        snprintf(buf, sizeof(buf), "%.*sroot=LABEL=%s%s", (int)pre, cmdline, lbl,
+                 space ? space : "");
+        snprintf(cmdline, sizeof(cmdline), "%s", buf);
+        printf("Regenerated root label from image: %s\n", lbl);
+      }
+    }
   }
 
   /* Append the WebUI boot/install selection (consumed by /init). */

@@ -233,6 +233,19 @@ jobs:
           echo "==== checksums ===="
           cat *.img.xz.sha256 payload.sha256 2>/dev/null || true
 
+      - name: Move tag to current commit
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const ref = 'tags/${{ needs.prepare.outputs.tag }}';
+            try {
+              await github.rest.git.updateRef({ ...context.repo, ref, sha: context.sha, force: true });
+            } catch (e) {
+              if (e.status !== 422) throw e;
+              await github.rest.git.createRef({ ...context.repo, ref: 'refs/tags/${{ needs.prepare.outputs.tag }}', sha: context.sha });
+            }
+            core.info('tag ${{ needs.prepare.outputs.tag }} -> ' + context.sha);
+
       - name: Build release body
         run: |
           set -euo pipefail
@@ -262,10 +275,11 @@ jobs:
             done
             if [ -s dist/large.txt ]; then
               echo
-              echo "Images too large for a GitHub release asset (>2 GB) are NOT attached;"
-              echo "build them locally with \`tools/inject-os-image.sh\`, or fetch the"
-              echo "upstream image from ps5-linux/ps5-linux-image and wrap it:"
+              echo "The following OS images exceed GitHub's 2 GB per-asset limit, so their"
+              echo ".xz is NOT attached (only checksums, descriptors, and boot tarballs are):"
               while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
+              echo "Build them locally with \`tools/inject-os-image.sh\`, or fetch the"
+              echo "upstream image from ps5-linux/ps5-linux-image and wrap it."
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."

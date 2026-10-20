@@ -217,11 +217,22 @@ jobs:
               base=$(basename "$f")
               echo "oversized (>$((2*1024*1024*1024)) B): $base ($sz bytes) -> skipping GitHub asset"
               mv "$f" "dist/large/$base"
+              # remove any partial/corrupt leftover with the same name
+              rm -f "dist/$base"
               # keep its checksum/descriptor in dist so they still ship
               echo "$base" >> dist/large.txt
             fi
           done
           echo "large distros:"; cat dist/large.txt || true
+          # fail if any oversized .xz slipped through
+          for f in dist/*.img.xz; do
+            [ -f "$f" ] || continue
+            sz=$(stat -c %s "$f")
+            if [ "$sz" -gt 2147483647 ]; then
+              echo "ERROR: oversized asset still in dist/: $f" >&2
+              exit 1
+            fi
+          done
 
       - name: Assemble checksums
         run: |
@@ -275,9 +286,10 @@ jobs:
             done
             if [ -s dist/large.txt ]; then
               echo
-              echo "Note: OS images larger than 2 GB (bazzite, bazzite-deck, steamos) ship"
-              echo "their boot tarballs, checksums, and descriptors here; the .xz itself is"
-              echo "available via the upstream ps5-linux/ps5-linux-image release."
+              echo "Images too large for a GitHub release asset (>2 GB) are NOT attached;"
+              echo "build them locally with \`tools/inject-os-image.sh\`, or fetch the"
+              echo "upstream image from ps5-linux/ps5-linux-image and wrap it:"
+              while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."

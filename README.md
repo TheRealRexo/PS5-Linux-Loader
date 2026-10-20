@@ -29,7 +29,7 @@ Any other firmware is refused by the payload. The exploit used here is the same 
   - `m2_init` — writes the hidden GPT (`--device`, `--size-gb`).
   - `ps5-osinstall` — creates the data partition and copies the `.img` onto it (`--target m2`, `--img`, `--label`).
   - `ps5-osexec` — kexec into a Linux root partition/label (raw-partition installs).
-- **Loop-mounted `.img` boot** — the initramfs `init` searches the M.2 (NVMe) first, then USB, loop-mounts the first `*.img` it finds and hands off to systemd.
+- **Loop-mounted `.img` boot** — the initramfs `init` re-scans the NVMe GPT (BLKRRPART) so the hidden PS5 partitions appear, searches the M.2 (NVMe) first, then USB, loop-mounts the first `*.img` it finds and hands off to systemd. The payload also regenerates `root=LABEL=...` from the selected image's ext4 label automatically.
 
 ## Requirements
 

@@ -275,11 +275,9 @@ jobs:
             done
             if [ -s dist/large.txt ]; then
               echo
-              echo "The following OS images exceed GitHub's 2 GB per-asset limit, so their"
-              echo ".xz is NOT attached (only checksums, descriptors, and boot tarballs are):"
-              while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
-              echo "Build them locally with \`tools/inject-os-image.sh\`, or fetch the"
-              echo "upstream image from ps5-linux/ps5-linux-image and wrap it."
+              echo "Note: OS images larger than 2 GB (bazzite, bazzite-deck, steamos) ship"
+              echo "their boot tarballs, checksums, and descriptors here; the .xz itself is"
+              echo "available via the upstream ps5-linux/ps5-linux-image release."
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."

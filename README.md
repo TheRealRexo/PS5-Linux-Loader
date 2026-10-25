@@ -1,5 +1,9 @@
 # ps5-linux-loader (13.xx)
 
+## USB-less boot
+
+The payload downloads the OS image directly from the R2 mirror (in-payload "Download here"), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+
 A **firmware-13.xx** fork of the official [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader) that boots Linux on **rest-mode resume** by defeating the PS5 hypervisor.
 
 This fork is based on the [13.60 Fix (#46)](https://github.com/ps5-linux/ps5-linux-loader/pull/46) merge and re-adds the multi-firmware 13.xx path, so it supports **13.00, 13.20 and 13.60**. On top of the upstream payload it adds a **built-in SMM WebUI + anonymous FTP server** for managing Linux images, and a set of **M.2 install tools** that store the OS as a single `.img` file on the internal SSD.

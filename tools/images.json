@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "base": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev",
+  "images": [
+    { "id": "ubuntu2604", "name": "Ubuntu 26.04", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-ubuntu2604.img.xz", "size_gb": 2 },
+    { "id": "arch", "name": "Arch Linux", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-arch.img.xz", "size_gb": 12 },
+    { "id": "cachyos", "name": "CachyOS", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-cachyos.img.xz", "size_gb": 2 },
+    { "id": "fedora", "name": "Fedora", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-fedora.img.xz", "size_gb": 1 },
+    { "id": "proxmox", "name": "Proxmox VE", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-proxmox.img.xz", "size_gb": 1 },
+    { "id": "debian", "name": "Debian", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-debian.img.xz", "size_gb": 2 },
+    { "id": "bazzite", "name": "Bazzite", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite.img.xz", "size_gb": 3 },
+    { "id": "bazzite-deck", "name": "Bazzite (Deck)", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite-deck.img.xz", "size_gb": 3 },
+    { "id": "steamos", "name": "SteamOS", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-steamos.img.xz", "size_gb": 3 }
+  ]
+}

@@ -14,8 +14,6 @@ Features:
 
 ![Alt Text](logo.webp)
 
-> **Note:** This fork's payload currently supports firmware **13.00 / 13.20 / 13.60**. Full 3.xx-11.60 support (as in the upstream loader) requires the additional HV shellcode modules which are not yet ported into this fork's build.
-
 ## What's new in this fork (TheRealRexo)
 
 This is a **firmware-13.xx fork** of the upstream loader. On top of upstream it adds:

@@ -1,4 +1,9 @@
 #include "ftp.h"
+#include "hv_defeat_0304.h"
+#include "hv_defeat_0506.h"
+#include "hv_defeat_0607.h"
+#include "hv_defeat_1160.h"
+#include "config.h"
 #include "hv_defeat_13xx.h"
 #include "loader.h"
 #include "prepare_resume.h"
@@ -12,14 +17,12 @@
 
 static void ensure_ext1_mounted(void) {
   mkdir("/mnt/ext1", 0777);
-  /* If /mnt/ext1 is already a mountpoint (OrbisOS exposed the M.2), done. */
   struct stat a, b;
   if (stat("/mnt/ext1", &a) == 0 && stat("/mnt", &b) == 0 &&
       a.st_dev != b.st_dev) {
     notify("M.2 storage already mounted at /mnt/ext1.\n");
     return;
   }
-  /* Best-effort: try common M.2 device nodes / filesystems. */
   const char *devs[] = {"/dev/nda0", "/dev/nda0p1", "/dev/nvme0",
                         "/dev/nvme0n1", "/dev/ext1", "/dev/da0",
                         "/dev/da0s1", NULL};
@@ -39,31 +42,28 @@ static void ensure_ext1_mounted(void) {
          "upload to a USB path or mount it manually.\n");
 }
 
+static int fail_after_staging(void) {
+  if (PS5_FW_IS_11XX(fw)) {
+    notify("Linux files are still staged. Cold reboot before trying again.\n");
+    while (1)
+      sleep(30);
+  }
+  return -1;
+}
+
 int main(void) {
   if (setup_env()) {
     notify("Something went wrong while initiating.\n"
-           "Please make sure your fw is 13.00, 13.20 or 13.60.");
+           "Please make sure your fw is supported.");
     return -1;
   }
 
   ensure_ext1_mounted();
 
-  if (fw != 0x1300 && fw != 0x1320 && fw != 0x1360) {
-    notify("Unsupported firmware.\n"
-           "This build supports 13.00, 13.20 and 13.60.");
-    return -1;
-  }
-
-  /* WebUI gate: serve until the user explicitly submits. There is no
-   * auto-boot, so the page stays open while the user transfers the .img
-   * (via FTP on port 21) and configures the boot/install options. The
-   * loader then derives cmdline (root label) and VRAM from the .img. */
   {
     struct webui_settings ws;
     webui_settings_init(&ws);
 
-    /* Start the FTP server (anonymous) rooted at the upload dir so large
-     * *.img files can be copied in while the WebUI serves HTTP. */
     if (ftp_server_start(ws.upload_dir, 21) > 0)
       notify("FTP server started on port 21 (root %s).", ws.upload_dir);
 
@@ -86,18 +86,35 @@ int main(void) {
 
   if (fetch_linux(&linux_i)) {
     notify("Something went wrong while installing linux files.\n");
-    return -1;
+    return fail_after_staging();
   }
 
   void *shellcode_kernel;
   size_t shellcode_kernel_len;
   if (prepare_resume(&shellcode_kernel, &shellcode_kernel_len)) {
     notify("Something went wrong while preparing resume.\n");
-    return -1;
+    return fail_after_staging();
   }
 
-  if (hv_defeat_13xx(shellcode_kernel, shellcode_kernel_len))
+  if ((0x0300 <= fw) && (fw < 0x0500)) {
+    if (hv_defeat_0304(shellcode_kernel, shellcode_kernel_len))
+      goto err;
+  } else if ((0x0500 <= fw) && (fw < 0x0650)) {
+    if (hv_defeat_0506(shellcode_kernel, shellcode_kernel_len))
+      goto err;
+  } else if ((0x0650 <= fw) && (fw < 0x0800)) {
+    if (hv_defeat_0607(shellcode_kernel, shellcode_kernel_len))
+      goto err;
+  } else if (PS5_FW_IS_12XX(fw) || fw == 0x1300 || fw == 0x1320 ||
+             fw == 0x1340 || fw == 0x1342 || fw == 0x1360) {
+    if (hv_defeat_13xx(shellcode_kernel, shellcode_kernel_len))
+      goto err;
+  } else if (PS5_FW_IS_11XX(fw)) {
+    if (hv_defeat_1160(shellcode_kernel, shellcode_kernel_len))
+      goto err;
+  } else {
     goto err;
+  }
 
   notify("Finished preparation. Going to rest mode in 5 seconds.\n"
          "Please wait for the orange light to stop blinking and then "
@@ -114,6 +131,6 @@ int main(void) {
 
 err:
   notify("Something went wrong while defeating Hypervisor.\n"
-         "Please make sure your fw is 13.00, 13.20 or 13.60.");
-  return -1;
+         "Please make sure your fw is supported.");
+  return fail_after_staging();
 }

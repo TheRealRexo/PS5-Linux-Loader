@@ -77,8 +77,41 @@ typedef struct _offset_list {
 _Static_assert(sizeof(offset_list) == 0x1E0,
                "offset_list must match the 13.60 60-qword table");
 
+extern offset_list off_0300;
+extern offset_list off_0310;
+extern offset_list off_0320;
+extern offset_list off_0321;
+extern offset_list off_0400;
+extern offset_list off_0402;
+extern offset_list off_0403;
+extern offset_list off_0450;
+extern offset_list off_0451;
+extern offset_list off_0500;
+extern offset_list off_0502;
+extern offset_list off_0510;
+extern offset_list off_0550;
+extern offset_list off_0600;
+extern offset_list off_0602;
+extern offset_list off_0650;
+extern offset_list off_0700;
+extern offset_list off_0701;
+extern offset_list off_0720;
+extern offset_list off_0740;
+extern offset_list off_0760;
+extern offset_list off_0761;
+extern offset_list off_1100;
+extern offset_list off_1120;
+extern offset_list off_1140;
+extern offset_list off_1160;
+extern offset_list off_1200;
+extern offset_list off_1202;
+extern offset_list off_1220;
+extern offset_list off_1240;
+extern offset_list off_1270;
 extern offset_list off_1300;
 extern offset_list off_1320;
+extern offset_list off_1340;
+extern offset_list off_1342;
 extern offset_list off_1360;
 
 #endif

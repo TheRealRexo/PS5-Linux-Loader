@@ -173,3 +173,6 @@ void pte_store(uintptr_t ptep, uint64_t pte);
 void install_page(uintptr_t pml4, vm_offset_t va, vm_paddr_t pa, int bits);
 void install_page_syscore(vm_offset_t va, vm_paddr_t pa, int bits);
 #endif
+
+int sceKernelGetMainSocId(void);
+#define PS5_PRO_SOC_ID 0x840fd0

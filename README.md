@@ -14,7 +14,7 @@ Features:
 
 ![Alt Text](logo.webp)
 
-## What's new in this fork (TheRealRexo)
+## What's new in this fork
 
 This is a **firmware-13.xx fork** of the upstream loader. On top of upstream it adds:
 

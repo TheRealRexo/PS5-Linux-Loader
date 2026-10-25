@@ -1,16 +1,8 @@
-# ps5-linux-loader (13.xx)
+# ps5-linux-loader (fork)
 
-**ps5-linux** leverages patched HV vulnerabilities to transform your PS5 Phat, Slim and Pro console running 3.00-13.60 firmwares into a highly capable Linux PC, unlocking its full hardware potential for desktop use. Powered by 8 CPU cores (16 threads) at 3.5 GHz and a GPU at 2.23 GHz, it provides enough performance to run Steam games and various emulators with impressive fluidity.
+**ps5-linux** leverages patched HV vulnerabilities to transform your **PS5 Phat, Slim and Pro** console running **3.00-13.60 firmwares** into a highly capable Linux PC, unlocking its full hardware potential for desktop use. Powered by 8 CPU cores (16 threads) at **3.5 GHz** and a GPU at **2.23 GHz**, it provides enough performance to run Steam games and various emulators with impressive fluidity.
 
-This repository is a **firmware-13.xx fork** of the official [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader). It is based on the 13.60 Fix (#46) merge and re-adds the multi-firmware 13.xx path, so it supports **13.00, 13.20 and 13.60**. On top of the upstream payload it adds a built-in **WebUI + anonymous FTP server** for managing Linux images, a set of **M.2 install tools** that store the OS as a single `.img` file on the internal SSD, and **USB-less boot**.
-
-**Credit / provenance.** The exploit, HV and Linux-boot logic is the upstream work of the ps5-linux authors (see Credits). This fork packages it, restores the 13.xx firmware path, and layers the WebUI/FTP/M.2 tooling on top.
-
-## USB-less boot
-
-The payload downloads the OS image directly from the R2 mirror (in-payload "Download here"), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
-
-## Features
+Features:
 
 - HDMI 4K60 video and audio output
 - M.2 SSD as dedicated Linux partition
@@ -20,194 +12,345 @@ The payload downloads the OS image directly from the R2 mirror (in-payload "Down
 - Ethernet port usable via custom gbe driver
 - Hardware video decode, encode and transcode (VCN) via VAAPI
 
+![Alt Text](logo.webp)
+
+## What's new in this fork (TheRealRexo)
+
+This is a **firmware-13.xx fork** of the upstream loader. On top of upstream it adds:
+
+- **Multi-firmware 13.xx support** (13.00 / 13.20 / 13.60), selected automatically.
+- **Built-in WebUI** on port 8080 (no auto-boot) + anonymous FTP on port 21.
+- **OS-image picker**, boot/install target selector, install-size field, VRAM setting.
+- **File manager** (list / upload / delete) including `/mnt/ext1` for USB-free setups.
+- **In-payload Download here** button fetching official images from the R2 mirror.
+- **Hardware / driver support table**.
+- **M.2 install tools** (`m2_init`, `ps5-osinstall`, `ps5-osexec`) storing the OS as a single `.img`.
+- **Loop-mounted `.img` boot** via patched initrd (BLKRRPART rescan) + USB-less boot.
+- **`images.json`** manifest of latest `.img` download URLs.
+
+## USB-less boot
+
+The payload downloads the OS image directly from the R2 mirror, derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` handles installation.
+
 ## PS5 firmware
 
-ps5-linux is supported on the following firmwares:
+*ps5-linux* is supported on the following firmwares:
 
-**PS5 Phat and Slim:** 3.00, 3.10, 3.20, 3.21 (without M.2 support); 4.00, 4.02, 4.03, 4.50, 4.51; 5.00, 5.02, 5.10, 5.50; 6.00, 6.02, 6.50; 7.00, 7.01, 7.20, 7.40, 7.60, 7.61; 11.60 (regular PS5 only, M.2 not tested yet; the kernel needs KASLR, so do not pass `nokaslr`, `mem=` or `memmap=`); 13.00, 13.20, 13.60 with M.2 support.
+**PS5 Phat and Slim:**
+- **3.00**, **3.10**, **3.20**, **3.21** without M.2 support
+- **4.00**, **4.02**, **4.03**, **4.50**, **4.51** with M.2 support
+- **5.00**, **5.02**, **5.10**, **5.50** with M.2 support
+- **6.00**, **6.02**, **6.50** with M.2 support
+- **7.00**, **7.01**, **7.20**, **7.40**, **7.60**, **7.61** with M.2 support
+- **11.60** (regular PS5 only, M.2 not tested yet; the kernel needs KASLR, so do not pass `nokaslr`, `mem=` or `memmap=`)
+- **13.00**, **13.20**, **13.60** with M.2 support
 
-**PS5 Pro:** 13.60 with M.2 support.
+**PS5 Pro:**
+- **13.60** with M.2 support
 
 Support for 1.xx and 2.xx firmwares may be added in the future, but we will not prioritize this effort.
 
-> This fork focuses on the 13.xx line. 13.60 is tested; 13.00/13.20 are untested.
+If you are on firmwares in-between or you want to update to a specific firmware, [download the correct PUP](https://darthsternie.net/ps5-firmwares/) and follow the [official guide](https://www.playstation.com/en-us/support/hardware/reinstall-playstation-system-software-safe-mode) to upgrade your PS5. **Obviously you cannot downgrade.**
 
-## Hardware
+## Hardwares
 
-Required: USB drive with minimum 64 GB (ideally external SSD) to install and run Linux; USB keyboard/mouse (dongles supported). Optional: USB WLAN adapter for WLAN internet access; M.2 SSD compatible on PS5 to run Linux from SSD; Bluetooth dongle to connect with PS5 DualSense controller.
+To run *ps5-linux*, you need some required and optional hardwares:
+
+- **Required**: USB drive with minimum 64GB (ideally external SSD) to install and run Linux.
+- **Required**: USB keyboard/mouse (dongles supported too).
+- *Optional*: USB WLAN adapter for WLAN internet access.
+- *Optional*: M.2 SSD compatible on PS5 (see [official guide](https://www.playstation.com/en-us/support/hardware/ps5-install-m2-ssd)) to run Linux from SSD.
+- *Optional*: Bluetooth dongle to connect with PS5 DualSense controller.
+
 
 ## Configure PS5 settings
 
-- VERY IMPORTANT: Enable Rest Mode features: Settings → System → Power Saving → Features Available in Rest Mode → Supply Power to USB Ports = Always.
-- VERY IMPORTANT: Disable HDMI Device Link: Settings → HDMI → Enable HDMI Device Link.
-- Recommended: Disable automatic updates: Settings → System Software → System Software Update and Settings.
-- Recommended: Disable automatic error reporting: Settings → System Software → Report System Software Errors Automatically.
-- If you reset your PS5 settings or reinstall the FW, reapply these.
+- **VERY IMPORTANT**: Enable Rest Mode features:
+  - Go to `Settings` → `System` → `Power Saving` → `Features Available in Rest Mode` and set `Supply Power to USB Ports` to `Always`.
+- **VERY IMPORTANT**: Disable HDMI Device Link:
+  - Go to `Settings` → `HDMI` → `Enable HDMI Device Link`
+- *Recommended*: Disable automatic updates:
+  - Go to `Settings` → `System Software` → `System Software Update and Settings`
+- *Recommended*: Disable automatic error reporting:
+  - Go to `Settings` → `System Software` → `Report System Software Errors Automatically`
+
+If you reset your PS5 settings or reinstall the FW, you need to reapply these settings again.
 
 ## Installation
 
-1. **Get a Linux image** — pre-built from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image) (recommended `ps5-ubuntu2604.img.xz`), or build your own with `build_image.sh --distro ubuntu2604`.
-2. **Flash the image to USB** (min 64 GB; external SSD recommended):
-   ```
-   sudo dd if=ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
-   ```
-   Windows: use Balena Etcher.
-3. **Plug the USB drive** into a supported port (front bottom Type-C or rear Type-A; avoid the front top Type-A USB 2.0 port).
-4. **Run the jailbreak** per your firmware (umtx2 for 3.00-5.50, Y2JB for 6.00-7.61, WebKit Autoloader for 7.61-13.60).
-5. **Send the payload:**
-   ```
-   socat -t 99999999 - TCP:$PS5IP:9021 < ps5-linux-loader.elf
-   ```
-   The console enters rest mode; wait for the orange LED to stop blinking, then press power to boot Linux (LED turns white on success).
+### 1. Get a Linux image
 
-If the LED is white but the screen is black: remove `video=DP-1:1920x1080@60` from `cmdline.txt`, toggle HDCP, try another display/capture device, or add `amdgpu.force_1080p=1` to `cmdline.txt`.
+#### Pre-built images
 
-## First boot
+You can download them from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image/releases/tag/latest). Recommended is `ps5-ubuntu2604.img.xz`. Unpack the `.xz` file.
 
-Configure your system and memorize your login password. Then: disable screen saver (buggy); possibly re-enable Wired/WLAN; hold kernel packages (`sudo apt-mark hold linux-generic ...`); install Firefox (`sudo snap install firefox`); update mesa; clone [ps5-linux-tools](https://github.com/ps5-linux/ps5-linux-tools) and build. For Marvell WLAN chips, install [ps5-linux-mwifiex](https://github.com/ps5-linux/ps5-linux-mwifiex).
+#### Build your own image
+
+If you use Windows,  run this in PowerShell or CMD as administrator to install WSL
+
+```bash
+wsl --install
+```
+
+Install docker:
+
+```bash
+sudo apt update
+sudo apt install docker.io -y
+sudo service docker start
+sudo usermod -aG docker $USER
+```
+
+Then clone and build:
+
+```bash
+cd ~/
+git clone https://github.com/ps5-linux/ps5-linux-image
+cd ps5-linux-image
+chmod +x ./build_image.sh
+./build_image.sh --distro ubuntu2604
+```
+
+The finished image is written to `output/ps5-ubuntu2604.img`.
+
+### 2. Flash the image to USB
+Minimum drive size: 64 GB. An external SSD is strongly recommended.
+
+#### Linux/macOS:
+
+```bash
+# check drive name with lsblk / diskutil list
+sudo dd if=output/ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
+```
+
+#### Windows (Balena Etcher):
+
+Download [Balena Etcher](https://etcher.balena.io/), select the `.img` file, select your USB drive, click Flash.
+
+### 3. Plug the USB drive into your PS5
+
+The following USB ports are supported for booting:
+
+- Front bottom Type-C port
+- Rear Type-A ports
+
+The front top Type-A port is USB 2.0 which is slower and thus not recommended.
+
+### 4. Run the jailbreak
+
+#### Firmware 3.00-5.50
+
+1. Clone via: `git clone https://github.com/idlesauce/umtx2`
+2. Configure fakedns via `dns.conf` to point `manuals.playstation.net` to your PCs IP address
+3. Run fake dns: `sudo python fakedns.py -c dns.conf`
+4. In a different terminal, run HTTPS server: `sudo python host.py`
+5. Go into PS5 advanced network settings and set primary DNS to your PCs IP address and leave secondary at `0.0.0.0`
+6. Go to user manual in settings and accept untrusted certificate prompt, run.
+
+#### Firmware 6.00-7.61
+
+1. Install Y2JB by following https://github.com/Gezine/Y2JB.
+2. Run kernel exploit: `python3 payload_sender.py $PS5IP 50000 payloads/lapse.js`
+
+#### Firmware 7.61-13.60
+1. Install WebKit Autoloader by following https://github.com/itsPLK/ps5-webkit-autoloader
+
+### 5. Send the payload
+If you're on ARM64 Linux, first install the x86-64 cross-compilation tools before:
+
+```bash
+sudo apt install gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu
+```
+
+Either download [ps5-linux-loader.elf](https://github.com/ps5-linux/ps5-linux-loader/releases/), or install [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) and compile it yourself:
+
+```bash
+git clone https://github.com/ps5-linux/ps5-linux-loader
+cd ps5-linux-loader
+make
+```
+
+Send the payload with your `$PS5IP` (shown on the page):
+
+```bash
+socat -t 99999999 - TCP:$PS5IP:9021 < ps5-linux-loader.elf
+```
+
+If all is successful, the payload will automatically go into rest mode. Wait until the orange LED stops blinking and becomes static. Only then, press the power button again to boot your PS5 into Linux. If the boot is successful, **the LED should turn white**. If it boots back into PS5 OS, then it's because you pressed the power button too early. Or, you did not enable rest mode features as described above. If it freezes instead of going into rest mode, then it is likely because you have etahen/kstuff enabled, which is incompatible. Disable them.
+
+If the LED is white, but you still have a blackscreen then:
+
+- Try removing `video=DP-1:1920x1080@60` line in cmdline.txt.
+- Try setting HDCP on or off (try both).
+- Try different monitors or capture cards, ideally with different resolutions. Currently, some monitors have issues.
+- Try setting `amdgpu.force_1080p=1` in `cmdline.txt` in the FAT32 partition of the USB drive.
+
+If none of this helps, please report the issue in our [Discord server](https://discord.gg/CRzZ9N9E6t) and provide your EDID information.
+
+
+## First Boot
+
+Configure your system and memorize your login password.
+
+Then, there are certain settings and commands we recommend doing:
+
+1. Disable screen saver, as it is currently buggy.
+
+2. Possibly, you have to disable and reenable your Wired/WLAN connection to get internet connection.
+
+3. Hold packages to prevent updating the kernel when doing `apt upgrade`:
+   ```bash
+   sudo apt-mark hold linux-generic linux-generic-hwe-24.04 linux-generic-hwe-26.04 linux-image-generic linux-image-generic-hwe-24.04 linux-image-generic-hwe-26.04 linux-headers-generic linux-headers-generic-hwe-24.04 linux-headers-generic-hwe-26.04
+   ```
+
+4. Install Firefox:
+
+   ```bash
+   sudo snap install firefox
+   ```
+
+5. Update mesa:
+
+   ```bash
+   sudo snap refresh mesa-2404 --channel=latest/edge
+   sudo add-apt-repository ppa:kisak/kisak-mesa
+   sudo apt update
+   sudo apt upgrade
+   ```
+
+6. Clone our [ps5-linux-tools](https://github.com/ps5-linux/ps5-linux-tools):
+
+   ```bash
+   sudo apt install zlib1g-dev
+   git clone https://github.com/ps5-linux/ps5-linux-tools
+   cd ps5-linux-tools
+   make
+   ```
+
+7. If you have a Marvell WLAN chip (`lspci -nn` shows `40:00.7 Ethernet controller [0200]: Marvell Technology Group Ltd. Device [1b4b:2b56] (rev 02)`), then you can install the WLAN driver:
+
+   ```bash
+   git clone https://github.com/ps5-linux/ps5-linux-mwifiex
+   cd ps5-linux-mwifiex
+   sudo ./install.sh
+   ```
 
 ## M.2 installation
 
-You can use an M.2 SSD exclusively for Linux. Attach it per the official guide, reformat on the PS5 if previously used for games, then from a running Linux:
+You can use a M.2 SSD exclusively for Linux (which means you cannot use it for PS5 game storage).
 
-```
+1. Attach the M.2 SSD by following the [official guide](https://www.playstation.com/en-us/support/hardware/ps5-install-m2-ssd).
+2. **VERY IMPORTANT**: If you used the M2. SSD for games before, reformat it on the PS5 under `Settings` → `Storage` → `M.2 SSD Storage`.
+3. Boot Linux on your PS5 and run these commands to initialize your M.2:
+
+```bash
 cd ps5-linux-tools
 sudo ./m2_init
-# reboot, relaunch Linux, then:
+```
+
+4. Reboot via `sudo reboot`. If your PS5 asks you to format your M.2 again, please report this issue to us in our [Discord server](https://discord.gg/CRzZ9N9E6t) and provide your M.2 model and storage size.
+5. Relaunch Linux on your PS5.
+6. Copy the `ps5-ubuntu2604.img` image that you built during installation or rebuild it on your PS5. Then, install it onto your M.2:
+
+```bash
+cd ps5-linux-tools
+chmod +x ./m2_install.sh
 sudo ./m2_install.sh --install $PATH_TO_YOUR_IMG
+```
+
+Now, you can boot into Linux on your M.2 via:
+
+```bash
+cd ps5-linux-tools
+chmod +x ./m2_exec.sh
 sudo ./m2_exec.sh
 ```
 
-To always boot from M.2, edit the label in `/boot/efi/cmdline.txt` from `root=LABEL=ubuntu2604` to `root=LABEL=ubuntu2604-m2`.
+Then follow the same instructions again as the previous section.
 
-**This fork's M.2 flow** keeps the OS as a single `.img` file inside a data partition (more resilient). Use `m2_init` + `ps5-osinstall` (see below) and the in-payload WebUI/FTP to go fully USB-less.
-
-## M.2 install tools (this fork)
-
-- `m2_init` — writes the hidden GPT (`--device`, `--size-gb`).
-- `ps5-osinstall` — creates the data partition and copies the `.img` onto it (`--target m2`, `--img`, `--label`).
-- `ps5-osexec` — kexec into a Linux root partition/label (raw-partition installs).
-
-Loop-mounted `.img` boot: the initramfs `init` re-scans the NVMe GPT (BLKRRPART), searches M.2 first then USB, loop-mounts the first `*.img` it finds, and hands off to systemd. The payload regenerates `root=LABEL=...` from the selected image's ext4 label automatically.
-
-⚠️ Coexistence caveat: the M.2 is treated as Linux-exclusive. A soft PS5 format usually leaves the Linux data partition (and the `.img`) intact, but a repair/hard format erases it. Back up your image.
+In order to always boot Linux from your M.2, you can edit the label at `/boot/efi/cmdline.txt` from `root=LABEL=ubuntu2604` to `root=LABEL=ubuntu2604-m2`. You will still require a USB drive with the FAT32, but you can reformat the ext4 partition.
 
 ## Fan & boost control
 
-```
+We provide a simple tool that allows you to boost your CPU to 3500Mhz and GPU to 2230MHz as well as changing the fan curve:
+
+```bash
 cd ps5-linux-tools
 sudo ./ps5_control --fan on
 sudo ./ps5_control --boost on
 ```
 
-Always turn on fan when you turn on boost.
+Always turn on fan when your turn on boost, as this is what the official PS5 OS does.
 
 ## Updating ps5-linux
 
-Download `.deb`/`.pkg.tar.zst` from [ps5-linux-patches](https://github.com/ps5-linux/ps5-linux-patches) and install as normal packages.
-
-## The WebUI
-
-While the payload runs it serves a page on `http://$PS5IP:8080` and an anonymous FTP server on `ftp://$PS5IP:21`. Use the WebUI to:
-
-- Review the auto-detected `bzImage` / `initrd.img` / `cmdline.txt`;
-- Pick the OS image and the boot/install target, set the VRAM size (MiB, 0 = auto);
-- Download official OS images directly from the R2 mirror (**Download here**);
-- Upload or delete files in the boot directory (including `/mnt/ext1` for USB-free setups);
-- View the Hardware / driver support table.
-
-There is **no auto-boot**: the page stays open while you configure and transfer files; click **Boot Linux** when ready. Large images can be pushed over FTP into the same directory.
-
-## Releases
-
-Each tagged release ships:
-
-- `ps5-linux-loader.elf` + `m2_init` / `ps5-osinstall` / `ps5-osexec` (with checksums).
-- Wrapped OS images `ps5-<distro>-os.img.xz` (official ps5-linux images with the M.2/storage tooling baked into the root filesystem) for `ubuntu2604, arch, cachyos, fedora, proxmox, debian, bazzite, bazzite-deck, steamos`.
-- `ps5-<distro>-boot.tar.gz` containing `bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt` for USB-free / manual setups.
-- `images.json` — manifest of the latest accessible `.img` download URLs (R2 mirror).
-
-Images larger than GitHub's 2 GB per-asset limit ship only their checksums, descriptors and boot tarballs here; the `.xz` is available via the R2 mirror listed in `images.json`.
-
-## Building from source
-
-Install the [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk), then:
-
-```
-git clone https://github.com/TheRealRexo/PS5-Linux-Loader
-cd PS5-Linux-Loader
-make
-```
-
-The payload is written to `bin/ps5-linux-loader.elf`. A plain `make` is sufficient — the 13xx kernel shellcode is committed, so there are no sub-builds.
-
-```
-export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
-export LLVM_CONFIG=/opt/homebrew/opt/llvm/bin/llvm-config
-make
-```
-
-## Repository layout
-
-```
-source/         payload sources (main, hv_defeat_13xx, prepare_resume, offsets, webui, ftp, httpdl, ...)
-include/        headers
-shellcode_1360.c        committed 13.60 kernel + AP shellcode
-shellcode_kernel_13xx.c committed 13.00/13.20 kernel shellcode
-tools/          m2_init, ps5-osinstall, ps5-osexec, inject-os-image.sh, patch-initrd.sh, images.json
-initrd/         patched init (loop-mount + BLKRRPART rescan)
-.github/        CI that builds the payload and wraps OS images into a release
-```
+For any future ps5-linux updates, you can download the `.deb` or `.pkg.tar.zst` on your PS5 from [ps5-linux-patches](https://github.com/ps5-linux/ps5-linux-patches/releases) and install them like normal packages.
 
 ## FAQ
 
-- **Will higher >=14.00 firmwares be supported?** No.
-- **Why can I not use M.2 on 3.xx?** Because the PS5 fails to boot with it attached.
-- **Can I dual-boot Linux and PS5 OS?** No, this is a soft-mod. You need to re-run the exploit to boot into Linux.
-- **Can I put Linux into standby and resume?** No, not supported.
-- **Can I continue using my PS5 if I install Linux?** Yes, the internal SSD is not modified.
-- **Can I use the PS5's NIC/WLAN module in Linux?** WLAN supported for Marvell chipsets (Phat/Slim) and MediaTek MT7925 (Pro); Ethernet supported on all models.
-- **Does hardware video decode and transcode work?** Yes. Decode: H.264, HEVC Main/Main 10, VP9 Profile 0/2, VC-1, MPEG-2. Encode: H.264, HEVC I-frames only.
-- **Does the DualSense controller work?** Yes, via internal Bluetooth and Bluetooth dongle.
-- **What resolutions and refresh rates are supported?** 1080p, 1440p, 2160p at 60 Hz broadly. 1440p@120 Hz confirmed on DELL S3225QC.
-- **After reboot, I get a "Repairing" screen.** Yes, harmless.
-- **Can I do this with just a PS5, no other devices?** Yes now — the payload can download the OS image directly from the R2 mirror and store it on the M.2.
+- Q: Will higher >=14.00 firmwares be supported?
+  - A: No.
+- Q: Why can I not use M.2 on 3.xx?
+  - A: Because the PS5 fails to boot with it attached.
+- Q: Can I dual-boot Linux and PS5 OS?
+  - A: No, this is a soft-mod. You need to re-run the exploit in order to boot into Linux.
+- Q: Can I put Linux into standby and resume?
+  - A: No, this is not supported. We may however add a shutdown feature that puts your PS5 into rest-mode allowing you to relaunch Linux when powering up again.
+- Q: Can I continue using my PS5 if I install Linux?
+  - A: Yes, the internal SSD is not modified
+- Q: Can I use the PS5's NIC/WLAN module in Linux?
+  - A: WLAN is supported for Marvell chipsets (Phat/Slim) and the MediaTek MT7925 (Pro) — both work out of the box with the included firmware. Ethernet is supported on all models.
+- Q: Does hardware video decode and transcode work?
+  - A: Yes, since [ps5-linux-patches #38](https://github.com/ps5-linux/ps5-linux-patches/pull/38). Decode works for H.264, HEVC Main/Main 10, VP9 Profile 0/2, VC-1 and MPEG-2. Encode works for H.264, and for HEVC with I-frames only.
+- Q: Does the DualSense controller work?
+  - A: Yes, via internal Bluetooth as well as Bluetooth dongle.
+- Q: What resolutions and refresh rates are supported?
+  - A: 1080p, 1440p and 2160p at 60Hz are broadly supported. 1440p@120Hz has been the only confirmed working on the DELL S3225QC yet. 120Hz or 30Hz may be added in the future.
+- Q: After reboot, I get a "Repairing" screen and "Your PS5 wasn't turned off properly." screen. Is that normal?
+  - A: Yes, and it's harmless.
 
 ## Tips and tricks
 
-- If you see graphical issues, add `RADV_DEBUG=nohiz`.
-- Adjust the kernel cmdline in `cmdline.txt` in the FAT32 partition.
-- Adjust VRAM size in `vram.txt` (default 512 MB = `0x20000000`, enables Dynamic VRAM).
-- Monitor hotswap may work but won't change resolution automatically.
-- Some monitors have a black screen if `video=DP-1:` is set. Confirmed working without it: MSI MAG274Q QD E2, DELL S2721DGF, DELL U2515H (1440p@60 Hz); possibly LG 27GL850, Lenovo Legion Y27q, ViewSonic Elite XG270QG.
+- If you see graphical issues in your games, add the environment variable `RADV_DEBUG=nohiz` as [recommended for BC250](https://elektricm.github.io/amd-bc250-docs/drivers/environment/#critical-environment-variables) as well.
+- You can adjust the kernel cmdline in `cmdline.txt` in the FAT32 partition.
+- You can adjust the VRAM size in `vram.txt` in the FAT32 partition. By default, it uses 512MB (0x20000000) which enables [Dynamic VRAM allocation](https://elektricm.github.io/amd-bc250-docs/bios/flashing/#why-flash-the-bios).
+- Monitor hotswap may work, but it will not change resolution automatically.
+- Some monitors have a black screen if a video=DP-1: parameter is set in `cmdline.txt`. Confirmed working without `video=DP-1:1920x1080@60` on:
+  - MSI MAG274Q QD E2, DELL S2721DGF, DELL U2515H (1440p@60Hz)
+  - Possibly also: LG 27GL850, Lenovo Legion Y27q, ViewSonic Elite XG270QG
+
+Many configurations, tips and tricks from the [AMD BC250 Documentation](https://elektricm.github.io/amd-bc250-docs/) also apply to PS5.
 
 ## Bugs
 
-- Screen saver does not work properly.
-- HDMI audio output does not work on some monitors.
-- HDMI 1440p and 2160p video output does not work on some monitors.
-- VCN HEVC encode has corrupt chroma with P-frames; use I-frame only (`-g 1 -bf 0`) or H.264.
+- screen save does not work properly
+- hdmi audio output does not work on some monitors
+- hdmi 1440p and 2160p video output does not work on some monitors
+- VCN HEVC encode has corrupt chroma with P-frames, use I-frame only (`-g 1 -bf 0`) or H.264
+
+## Upstreamed changes
+
+During this project, we have upstreamed some changes:
+
+- [drm/amd: fix dcn 2.01 check](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/drivers/gpu/drm/amd/display/dc?id=39f44f54afa58661ecae9c27e15f5dbce2372892)
+- [amd/addrlib: Add more GFX1013 GPUs](https://gitlab.freedesktop.org/mesa/mesa/-/commit/44bed00b8bbcb1825e2c920cf1a828efdc72b1f1)
+
+## Discord
+
+Join our [Discord server](https://discord.gg/CRzZ9N9E6t) to celebrate Linux on PS5, receive help, learn tips & tricks, join development, or report issues.
 
 ## Credits
 
-Upstream [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader) and its contributors, including:
-
-- theflow: ps5-linux-loader, ps5-linux-patches, ps5-linux-tools
-- c0w: ps5-linux-loader
-- resulknad: ps5-linux-image
-- rmuxnet: ps5 ethernet driver
-- fail0verflow: prosperous
-- flatz: HV exploit
-- cragson: HV exploit implementation
-- john-tornblom: PS5 SDK
-- echostretch: Offsets and testing
-- kirathenotebook: Betatesting and readme contribution
+- [theflow](https://github.com/TheOfficialFloW): [ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader), [ps5-linux-patches](https://github.com/ps5-linux/ps5-linux-patches), [ps5-linux-tools](https://github.com/ps5-linux/ps5-linux-tools)
+- [c0w](https://github.com/c0w-ar): [ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader)
+- [resulknad](https://github.com/resulknad): [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image)
+- [rmuxnet](https://github.com/rmuxnet): [ps5 ethernet driver](https://github.com/ps5-linux/ps5-linux-patches/commit/643e214d7bd37f292045fc0dbb821e421f7a3e47)
+- [fail0verflow](https://github.com/fail0verflow): [prosperous](https://github.com/fail0verflow/prosperous)
+- [flatz](https://github.com/flatz): [HV exploit](https://gist.github.com/flatz/620ddda6d64acca6d1c990dc3080ac0e)
+- [cragson](https://github.com/cragson): [HV expoit implementation](https://github.com/cragson/ps5-hen)
+- [john-tornblom](https://github.com/john-tornblom): [PS5 SDK](https://github.com/ps5-payload-dev/sdk)
+- [echostretch](https://github.com/echostretch): Offsets and testing
+- [kirathenotebook](https://github.com/kirathenotebook): Betatesting and readme contribution
 - 15432: Tests on BC-250
-- DeathlySin: PS5 Pro support (E820 memory map, I/O fix)
-- gzimbric: 11.60 support
-
-Related work: [PS5Dev/Byepervisor-Reborn](https://github.com/PS5Dev/Byepervisor-Reborn) (13.xx rest-mode hypervisor exploit; bug found by theflow0). See the upstream repository for the complete contributor list.
-
-## License
-
-See `LICENSE`.
+- [DeathlySin](https://github.com/DeathlySin): PS5 Pro support (E820 memory map, I/O fix)
+- [gzimbric](https://github.com/gzimbric): 11.60 support, building on the 13.xx work of Ouroboros, DeathlySin and Sonic, with a startup-AP payload based on SpecterDev's Byepervisor

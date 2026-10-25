@@ -1,15 +1,14 @@
 {
-  "version": 1,
-  "base": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev",
+  "name": "PS5 Linux Loader - OS Images",
   "images": [
-    { "id": "ubuntu2604", "name": "Ubuntu 26.04", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-ubuntu2604.img.xz", "size_gb": 2 },
-    { "id": "arch", "name": "Arch Linux", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-arch.img.xz", "size_gb": 12 },
-    { "id": "cachyos", "name": "CachyOS", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-cachyos.img.xz", "size_gb": 2 },
-    { "id": "fedora", "name": "Fedora", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-fedora.img.xz", "size_gb": 1 },
-    { "id": "proxmox", "name": "Proxmox VE", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-proxmox.img.xz", "size_gb": 1 },
-    { "id": "debian", "name": "Debian", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-debian.img.xz", "size_gb": 2 },
-    { "id": "bazzite", "name": "Bazzite", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite.img.xz", "size_gb": 3 },
-    { "id": "bazzite-deck", "name": "Bazzite (Deck)", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite-deck.img.xz", "size_gb": 3 },
-    { "id": "steamos", "name": "SteamOS", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-steamos.img.xz", "size_gb": 3 }
+    { "name": "Ubuntu 26.04", "filename": "ps5-ubuntu2604-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-ubuntu2604.img.xz", "category": "OS Images" },
+    { "name": "Arch Linux", "filename": "ps5-arch-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-arch.img.xz", "category": "OS Images" },
+    { "name": "CachyOS", "filename": "ps5-cachyos-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-cachyos.img.xz", "category": "OS Images" },
+    { "name": "Fedora", "filename": "ps5-fedora-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-fedora.img.xz", "category": "OS Images" },
+    { "name": "Proxmox VE", "filename": "ps5-proxmox-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-proxmox.img.xz", "category": "OS Images" },
+    { "name": "Debian", "filename": "ps5-debian-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-debian.img.xz", "category": "OS Images" },
+    { "name": "Bazzite", "filename": "ps5-bazzite-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite.img.xz", "category": "OS Images" },
+    { "name": "Bazzite (Deck)", "filename": "ps5-bazzite-deck-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-bazzite-deck.img.xz", "category": "OS Images" },
+    { "name": "SteamOS", "filename": "ps5-steamos-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-steamos.img.xz", "category": "OS Images" }
   ]
 }

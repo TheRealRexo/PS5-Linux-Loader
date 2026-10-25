@@ -1,4 +1,5 @@
 #include "webui.h"
+#include "httpdl.h"
 #include "utils.h"
 #include "images_manifest.h"
 
@@ -380,9 +381,15 @@ static void render_manifest(int fd) {
     send_str(fd, esc_file);
     send_str(fd, "</td><td><a href='");
     send_str(fd, esc_url);
-    send_str(fd, "'>");
+    send_str(fd, "'>link</a>"
+               "<form method=post action='/download' style='display:inline;margin-left:6px'>"
+               "<input type=hidden name=url value='");
     send_str(fd, esc_url);
-    send_str(fd, "</a></td></tr>");
+    send_str(fd, "'>"
+               "<input type=hidden name=dir value='");
+    send_str(fd, "");
+    send_str(fd, "'>"
+               "<button class='btn' type=submit>Download here</button></form></td></tr>");
   }
   send_str(fd, "</table>");
 }
@@ -1046,6 +1053,36 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
         send_redirect(cfd);
       else
         send_plain(cfd, 500, "Upload failed.");
+      close(cfd);
+    } else if (!strcmp(method, "POST") && !strcmp(reqpath, "/download")) {
+      char clen_str[32] = {0};
+      int clen = 0;
+      if (header_get(req, "Content-Length", clen_str, sizeof(clen_str)))
+        clen = atoi(clen_str);
+      read_body(cfd, req, total, clen);
+      char *body = strstr(req, "\r\n\r\n");
+      body = body ? body + 4 : req + total;
+      char url[1024] = {0}, dir[1024] = {0};
+      form_get(body, "url", url, sizeof(url));
+      form_get(body, "dir", dir, sizeof(dir));
+      if (!dir[0])
+        snprintf(dir, sizeof(dir), "%s", s->upload_dir);
+      url_decode(url);
+      url_decode(dir);
+      if (url[0]) {
+        char out[2048];
+        const char *fn = strrchr(url, '/');
+        fn = fn ? fn + 1 : "downloaded.img.xz";
+        snprintf(out, sizeof(out), "%s%s%s", dir,
+                 (dir[strlen(dir)-1] == '/') ? "" : "/", fn);
+        notify("Downloading %s -> %s\n", url, out);
+        if (http_download(url, out) == 0)
+          send_plain(cfd, 200, "Download complete. You can close this tab.");
+        else
+          send_plain(cfd, 500, "Download failed.");
+      } else {
+        send_plain(cfd, 400, "Missing url.");
+      }
       close(cfd);
     } else {
       send_plain(cfd, 404, "Not found.");

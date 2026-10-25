@@ -1,5 +1,6 @@
 #include "webui.h"
 #include "utils.h"
+#include "images_manifest.h"
 
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -354,6 +355,38 @@ static char *build_image_list(const struct webui_settings *s) {
   return html;
 }
 
+/* Render the official-OS-image download table from the embedded manifest. */
+static void render_manifest(int fd) {
+  send_str(fd, "<h2>Official OS images (download)</h2>"
+               "<p class=sub>Download the .img.xz from R2, decompress it to "
+               "get the .img, then transfer the .img to the PS5 (USB stick "
+               "or internal M.2 via FTP port 21). The boot files "
+               "(bzImage, initrd.img, cmdline.txt, vram.txt) come from the "
+               "matching *-boot.tar.gz release asset; the loader derives "
+               "cmdline (root label) and VRAM from the selected .img.</p>"
+               "<table>"
+               "<tr><td>Distro</td><td class=num>.img.xz</td>"
+               "<td>Download (R2)</td></tr>");
+  for (size_t i = 0; i < images_manifest_count; i++) {
+    char esc_name[256], esc_url[512], esc_file[256];
+    html_escape(images_manifest[i].name, esc_name, sizeof(esc_name));
+    html_escape(images_manifest[i].img_url, esc_url, sizeof(esc_url));
+    const char *file = strrchr(images_manifest[i].img_url, '/');
+    file = file ? file + 1 : images_manifest[i].img_url;
+    html_escape(file, esc_file, sizeof(esc_file));
+    send_str(fd, "<tr><td>");
+    send_str(fd, esc_name);
+    send_str(fd, "</td><td class=num>");
+    send_str(fd, esc_file);
+    send_str(fd, "</td><td><a href='");
+    send_str(fd, esc_url);
+    send_str(fd, "'>");
+    send_str(fd, esc_url);
+    send_str(fd, "</a></td></tr>");
+  }
+  send_str(fd, "</table>");
+}
+
 /* File-manager listing for `dir`. Caller frees. */
 static char *build_file_listing(const char *dir) {
   size_t cap = 32768;
@@ -476,7 +509,9 @@ static void render_page(int fd, const struct webui_settings *s,
            "</style></head><body><div class=wrap>"
            "<h1>PS5 Linux Loader</h1>"
            "<p class=sub>Pick an OS image and target, manage files, then boot. "
-           "Auto-boots in ~2 minutes if you don't act.</p>");
+           "There is no auto-boot: configure the options below and click "
+           "Boot Linux. Transfer large .img files over FTP (port 21, "
+           "anonymous login) while this page is open.</p>");
 
   send_str(fd, "<h2>Detected files</h2><table>");
   if (scan)
@@ -524,6 +559,8 @@ static void render_page(int fd, const struct webui_settings *s,
   if (s->mode == WEBUI_MODE_INSTALL)
     send_str(fd, " checked");
   send_str(fd, "> Install to target</label></div></div>");
+
+  render_manifest(fd);
 
   send_str(fd, "<h2>Search &amp; overrides</h2>"
                "<label>Search paths (one per line)</label>"

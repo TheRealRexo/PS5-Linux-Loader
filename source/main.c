@@ -54,8 +54,10 @@ int main(void) {
     return -1;
   }
 
-  /* WebUI gate: let the user review detected files / adjust paths, but
-   * never block forever. Falls back to defaults on timeout or error. */
+  /* WebUI gate: serve until the user explicitly submits. There is no
+   * auto-boot, so the page stays open while the user transfers the .img
+   * (via FTP on port 21) and configures the boot/install options. The
+   * loader then derives cmdline (root label) and VRAM from the .img. */
   {
     struct webui_settings ws;
     webui_settings_init(&ws);
@@ -65,16 +67,20 @@ int main(void) {
     if (ftp_server_start(ws.upload_dir, 21) > 0)
       notify("FTP server started on port 21 (root %s).", ws.upload_dir);
 
-    notify("WebUI test build.\nServing config page on port 8080...");
+    notify("WebUI on port 8080. Configure and click Boot Linux "
+           "(no auto-boot; transfer .img via FTP port 21 if needed)...");
 
-    if (webui_run(&ws, 8080, 120) == 0 && ws.submitted) {
-      loader_set_paths_from_webui(&ws);
-      loader_set_overrides_from_webui(&ws);
-      loader_set_boot_from_webui(&ws);
-      notify("WebUI settings applied. Continuing boot...\n");
-    } else {
-      notify("WebUI timed out or skipped.\n"
-             "Booting with default paths...\n");
+    for (;;) {
+      if (webui_run(&ws, 8080, 300) == 0 && ws.submitted) {
+        loader_set_paths_from_webui(&ws);
+        loader_set_overrides_from_webui(&ws);
+        loader_set_boot_from_webui(&ws);
+        notify("WebUI settings applied. Continuing boot...\n");
+        break;
+      }
+      notify("WebUI awaits your selection (no auto-boot). "
+             "Configure and click Boot Linux.\n");
+      sleep(2);
     }
   }
 

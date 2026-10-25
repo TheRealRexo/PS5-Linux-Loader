@@ -2,4 +2,5 @@ bin/
 *.elf
 *.o
 tools/m2_init
+include/images_manifest.h
 .DS_Store

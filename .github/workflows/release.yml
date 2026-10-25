@@ -205,6 +205,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - uses: actions/checkout@v5
+
+      - name: Copy images manifest
+        run: cp tools/images.json dist/images.json
+
       - name: Partition oversized assets
         run: |
           set -euo pipefail
@@ -271,6 +276,10 @@ jobs:
             echo "install target/size selector, VRAM setting, file manager, anonymous"
             echo "FTP (port 21), and a hardware/driver support table."
             echo
+            echo "There is no auto-boot: open the WebUI, pick an OS image and target,"
+            echo "set VRAM, and click Boot Linux. Transfer large .img files over FTP"
+            echo "(port 21) while the page is open."
+            echo
             echo "OS images attached to this release (wrapped, <=2 GB):"
             for f in dist/*.img.xz; do
               [ -f "$f" ] || continue
@@ -284,16 +293,24 @@ jobs:
               [ -f "$f" ] || continue
               echo "- $(basename "$f")"
             done
+            echo
+            echo "OS image manifest (latest accessible .img download URLs):"
+            echo "- dist/images.json"
+            echo
             if [ -s dist/large.txt ]; then
-              echo
-              echo "Images too large for a GitHub release asset (>2 GB) are NOT attached;"
-              echo "build them locally with \`tools/inject-os-image.sh\`, or fetch the"
-              echo "upstream image from ps5-linux/ps5-linux-image and wrap it:"
+              echo "The following images exceed GitHub's 2 GB per-asset limit, so"
+              echo "their .xz is not attached here; their checksums, descriptors"
+              echo "(.sha256 / .osimage), and boot tarballs are. Download the .img.xz"
+              echo "from the R2 mirror URL in dist/images.json:"
               while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."
             echo "WiFi firmware is dumped from the PS5 automatically during boot."
+            echo
+            echo "The .img itself is downloaded separately (see dist/images.json) and"
+            echo "transferred to the PS5; the loader derives cmdline (root label) and VRAM"
+            echo "from the selected .img automatically."
           } > dist/body.md
           cat dist/body.md
 
@@ -309,6 +326,7 @@ jobs:
             dist/ps5-osinstall
             dist/ps5-osexec
             dist/payload.sha256
+            dist/images.json
             dist/*.img.xz
             dist/*.img.xz.sha256
             dist/*.img.osimage

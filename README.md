@@ -29,7 +29,7 @@ This repository is **TheRealRexo's fork** of the upstream [ps5-linux/ps5-linux-l
 
 | Model | Supported firmwares | M.2 |
 |-------|---------------------|-----|
-| PS5 Phat & Slim | 3.00, 3.10, 3.20, 3.21 (no M.2) · 4.00–7.61 · 11.60 · 13.00, 13.20, 13.60 | Yes (except 3.xx, 11.60 untested) |
+| PS5 Phat & Slim | 3.00, 3.10, 3.20, 3.21 (no M.2) · 4.00–7.61 · 11.60 · 13.00, 13.20, 13.60 | Yes (except 3.xx) (11.60 untested) |
 | PS5 Pro | 13.60 | Yes |
 
 Support for 1.xx / 2.xx may come later. You cannot downgrade firmware.

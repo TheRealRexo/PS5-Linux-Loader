@@ -295,20 +295,20 @@ jobs:
             done
             echo
             echo "OS image manifest (latest accessible .img download URLs):"
-            echo "- dist/images.json"
+            echo "- images.json"
             echo
             if [ -s dist/large.txt ]; then
-              echo "The following images exceed GitHub's 2 GB per-asset limit, so"
-              echo "their .xz is not attached here; their checksums, descriptors"
-              echo "(.sha256 / .osimage), and boot tarballs are. Download the .img.xz"
-              echo "from the R2 mirror URL in dist/images.json:"
+              echo "OS images larger than GitHub's 2 GB per-asset limit ship their boot"
+              echo "tarballs, checksums (.sha256) and descriptors (.osimage) here; their"
+              echo ".xz is not attached (too big for a release asset). Download the .img.xz"
+              echo "from the R2 mirror URL in images.json:"
               while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
             fi
             echo
             echo "VRAM can be set from the payload WebUI (0 = auto, uses vram.txt)."
             echo "WiFi firmware is dumped from the PS5 automatically during boot."
             echo
-            echo "The .img itself is downloaded separately (see dist/images.json) and"
+            echo "The .img itself is downloaded separately (see images.json) and"
             echo "transferred to the PS5; the loader derives cmdline (root label) and VRAM"
             echo "from the selected .img automatically."
           } > dist/body.md

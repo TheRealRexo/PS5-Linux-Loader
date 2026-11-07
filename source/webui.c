@@ -357,17 +357,18 @@ static char *build_image_list(const struct webui_settings *s) {
 }
 
 /* Render the official-OS-image download table from the embedded manifest. */
-static void render_manifest(int fd) {
+static void render_manifest(int fd, const char *upload_dir) {
   send_str(fd, "<h2>Official OS images (download)</h2>"
-               "<p class=sub>Download the .img.xz from R2, decompress it to "
-               "get the .img, then transfer the .img to the PS5 (USB stick "
-               "or internal M.2 via FTP port 21). The boot files "
+               "<p class=sub>Download the .img.xz from R2 and store the "
+               ".img where you want (USB dir, /mnt/ext1 M.2 folder, or PS5 "
+               "internal SSD folder). Then transfer the .img to the PS5 via "
+               "FTP port 21. The boot files "
                "(bzImage, initrd.img, cmdline.txt, vram.txt) come from the "
                "matching *-boot.tar.gz release asset; the loader derives "
                "cmdline (root label) and VRAM from the selected .img.</p>"
                "<table>"
                "<tr><td>Distro</td><td class=num>.img.xz</td>"
-               "<td>Download (R2)</td></tr>");
+               "<td>Download (R2) to this dir</td></tr>");
   for (size_t i = 0; i < images_manifest_count; i++) {
     char esc_name[256], esc_url[512], esc_file[256];
     html_escape(images_manifest[i].name, esc_name, sizeof(esc_name));
@@ -379,17 +380,16 @@ static void render_manifest(int fd) {
     send_str(fd, esc_name);
     send_str(fd, "</td><td class=num>");
     send_str(fd, esc_file);
-    send_str(fd, "</td><td><a href='");
-    send_str(fd, esc_url);
-    send_str(fd, "'>link</a>"
-               "<form method=post action='/download' style='display:inline;margin-left:6px'>"
+    send_str(fd, "</td><td><form method=post action='/download' "
+               "style='display:inline;margin-left:6px'>"
                "<input type=hidden name=url value='");
     send_str(fd, esc_url);
     send_str(fd, "'>"
-               "<input type=hidden name=dir value='");
-    send_str(fd, "");
-    send_str(fd, "'>"
-               "<button class='btn' type=submit>Download here</button></form></td></tr>");
+               "<input type=text name=dir value='");
+    send_str(fd, upload_dir);
+    send_str(fd, "' placeholder='/mnt/usb0/' size=80>"
+               "<button class='btn' type=submit>Download here</button>"
+               "</form></td></tr>");
   }
   send_str(fd, "</table>");
 }
@@ -567,7 +567,7 @@ static void render_page(int fd, const struct webui_settings *s,
     send_str(fd, " checked");
   send_str(fd, "> Install to target</label></div></div>");
 
-  render_manifest(fd);
+  render_manifest(fd, s->upload_dir);
 
   send_str(fd, "<h2>Search &amp; overrides</h2>"
                "<label>Search paths (one per line)</label>"

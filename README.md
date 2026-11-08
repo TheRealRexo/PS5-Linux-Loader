@@ -36,7 +36,7 @@ Support for 1.xx / 2.xx may come later. You cannot downgrade firmware.
 
 ## USB-less boot
 
-The payload downloads the OS image directly from the R2 mirror (in-payload "Download here"), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+The payload downloads the OS image directly from the R2 mirror (in-payload "Download here"), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2/internal ssd. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
 
 ## Hardware
 
@@ -51,7 +51,7 @@ Optional: USB WLAN adapter, M.2 SSD compatible with PS5, Bluetooth dongle for Du
 
 ## Installation
 
-1. Get a Linux image (pre-built from [ps5-linux-image](https://github.com/ps5-linux/ps5-linux-image), or build via `build_image.sh --distro ubuntu2604`).
+1. Get a Linux image (pre-built from the latest github release), or build via `build_image.sh --distro ubuntu2604`).
 2. Flash to USB (min 64 GB, external SSD recommended):
    ```
    sudo dd if=output/ps5-ubuntu2604.img of=/dev/sdX bs=4M status=progress conv=fsync
@@ -114,9 +114,9 @@ initrd/     patched init (loop-mount + BLKRRPART rescan)
 - Q: Can I continue using my PS5 if I install Linux? A: Yes, internal SSD is not modified.
 - Q: Can I use the PS5's NIC/WLAN in Linux? A: Yes for Marvell WLAN (Phat/Slim) and MT7925 (Pro); Ethernet on all models.
 - Q: Hardware decode/transcode? A: Yes (#38). Decode: H.264, HEVC, VP9, VC-1, MPEG-2. Encode: H.264, HEVC I-frames.
-- Q: DualSense? A: Yes, via internal BT or dongle.
-- Q: Resolutions? A: 1080p/1440p/2160p @60Hz; 1440p@120Hz confirmed on DELL S3225QC.
-- Q: After reboot "Repairing"/"wasn't turned off properly"? A: Yes, harmless.
+- Q: DualSense controller support? A: Yes, via internal BT or dongle.
+- Q: Supported Resolutions? A: 1080p/1440p/2160p @60Hz; 1440p@120Hz confirmed on DELL S3225QC.
+- Q: After reboot a "Repairing"/"wasn't turned off properly" screen appears, is that normal? A: Yes, harmless.
 
 ## Tips and tricks
 

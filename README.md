@@ -36,7 +36,16 @@ Support for 1.xx / 2.xx may come later. You cannot downgrade firmware.
 
 ## USB-less boot
 
-The payload downloads the OS image directly from the R2 mirror (in-payload "Download here"), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2/internal ssd. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+The payload downloads the OS image directly from the R2 mirror (in-payload "Download here", or the `images.json` URLs), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2/internal ssd. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+
+**The only file you download is the `.img`.** All the other boot files (`bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt`) and the install-time parameters are generated/managed by the payload from what you put in the WebUI:
+
+- **Boot only** or **install to target** (USB port / internal M.2) — the payload writes the matching `ps5.mode` / `ps5.target` / `ps5.size_gb` boot params;
+- **Install size** (GB, `0` = image's natural size);
+- **VRAM** (MiB, `0` = auto from the image);
+- **Image** — the loader reads the ext4 root label from the selected `.img` and generates `root=LABEL=...` for it.
+
+The patched initrd loop-mounts that `.img` at boot, so the OS is stored as a file and never gets cleared.
 
 ## Hardware
 
@@ -83,6 +92,8 @@ Each tagged release ships:
 - `images.json` — manifest of latest `.img` download URLs (R2 mirror).
 
 Images >2 GB ship their boot tarballs, checksums (.sha256) and descriptors (.osimage) here; their `.xz` is not attached (too big for a release asset). Download the `.img.xz` from the R2 mirror URL in `images.json`.
+
+**You only ever download the `.img`.** The release's boot tarballs / generated files are convenience artifacts — the payload itself generates the boot configuration from the WebUI settings and the selected image. See [USB-less boot](#usb-less-boot).
 
 ## Building from source
 

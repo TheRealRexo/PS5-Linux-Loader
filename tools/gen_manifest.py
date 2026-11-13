@@ -60,8 +60,26 @@ def main():
         url = info.get("url", "")
         disp = info.get("name", name)
         lines.append("    { %s, %s }," % (c_str(disp), c_str(url)))
+    latest = data.get("latest") or {}
+    if isinstance(latest, dict):
+        latest_name = latest.get("name") or ""
+        latest_url = latest.get("url") or ""
+    elif isinstance(latest, str):
+        latest_name = ""
+        latest_url = latest
+    else:
+        latest_name = ""
+        latest_url = ""
+    if not latest_url and items:
+        latest_url = items[0][1].get("url", "")
+        latest_name = latest_name or items[0][1].get("name", items[0][0])
     lines += [
         "};",
+        "",
+        "static const char *images_manifest_latest_name = ",
+        "    %s;" % c_str(latest_name),
+        "static const char *images_manifest_latest_url = ",
+        "    %s;" % c_str(latest_url),
         "",
         "static const size_t images_manifest_count =",
         "    sizeof(images_manifest) / sizeof(images_manifest[0]);",

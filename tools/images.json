@@ -1,5 +1,11 @@
 {
   "name": "PS5 Linux Loader - OS Images",
+  "latest": {
+    "name": "Ubuntu 26.04",
+    "filename": "ps5-ubuntu2604-os.img.xz",
+    "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-ubuntu2604.img.xz",
+    "category": "OS Images"
+  },
   "images": [
     { "name": "Ubuntu 26.04", "filename": "ps5-ubuntu2604-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-ubuntu2604.img.xz", "category": "OS Images" },
     { "name": "Arch Linux", "filename": "ps5-arch-os.img.xz", "url": "https://pub-561df4012f1a46fbbdf618d5cc5941f6.r2.dev/ps5-arch.img.xz", "category": "OS Images" },

@@ -356,10 +356,26 @@ static char *build_image_list(const struct webui_settings *s) {
   return html;
 }
 
+/* Strip a trailing ".xz" (case-insensitive) in place; keeps the file stem. */
+static void chomp_xz(char *s) {
+  size_t n = strlen(s);
+  if (n < 4)
+    return;
+  char c1 = s[n - 3], c2 = s[n - 2], c3 = s[n - 1];
+  if (c1 >= 'A' && c1 <= 'Z')
+    c1 += 32;
+  if (c2 >= 'A' && c2 <= 'Z')
+    c2 += 32;
+  if (c3 >= 'A' && c3 <= 'Z')
+    c3 += 32;
+  if (c1 == '.' && c2 == 'x' && c3 == 'z')
+    s[n - 3] = 0;
+}
+
 /* Render the official-OS-image download table from the embedded manifest. */
 static void render_manifest(int fd, const char *upload_dir) {
   send_str(fd, "<h2>Official OS images (download)</h2>"
-               "<p class=sub>Download the .img.xz from R2 and store the "
+               "<p class=sub>Download the .img (or .img.xz from R2) and store the "
                ".img where you want (USB dir, /mnt/ext1 M.2 folder, or PS5 "
                "internal SSD folder). Then transfer the .img to the PS5 via "
                "FTP port 21. The boot files "
@@ -369,6 +385,26 @@ static void render_manifest(int fd, const char *upload_dir) {
                "<table>"
                "<tr><td>Distro</td><td class=num>.img.xz</td>"
                "<td>Download (R2) to this dir</td></tr>");
+  {
+    char esc_name[256], esc_url[512], esc_file[256];
+    html_escape(images_manifest_latest_name, esc_name, sizeof(esc_name));
+    html_escape(images_manifest_latest_url, esc_url, sizeof(esc_url));
+    const char *file = strrchr(images_manifest_latest_url, '/');
+    file = file ? file + 1 : images_manifest_latest_url;
+    html_escape(file, esc_file, sizeof(esc_file));
+    send_str(fd, "<tr><td>LATEST</td><td class=num>");
+    send_str(fd, esc_file);
+    send_str(fd, "</td><td><form method=post action='/download' "
+               "style='display:inline;margin-left:6px'>"
+               "<input type=hidden name=url value='");
+    send_str(fd, esc_url);
+    send_str(fd, "'>"
+               "<input type=text name=dir value='");
+    send_str(fd, upload_dir);
+    send_str(fd, "' placeholder='/mnt/usb0/' size=80>"
+               "<button class='btn' type=submit>Download here (latest)</button>"
+               "</form></td></tr>");
+  }
   for (size_t i = 0; i < images_manifest_count; i++) {
     char esc_name[256], esc_url[512], esc_file[256];
     html_escape(images_manifest[i].name, esc_name, sizeof(esc_name));
@@ -905,7 +941,7 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
     snprintf(ip, sizeof(ip), "<PS5-IP>");
   printf("[webui] listening on http://%s:%d\n", ip, port);
   notify("Open http://%s:%d to configure (FTP on port 21).\n"
-         "Auto-boots in ~2 min if unused.",
+         "No auto-boot: configure and click Boot Linux when ready.",
          ip, port);
 
   time_t deadline = time(NULL) + timeout_sec;
@@ -1072,9 +1108,11 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       if (url[0]) {
         char out[2048];
         const char *fn = strrchr(url, '/');
-        fn = fn ? fn + 1 : "downloaded.img.xz";
+        char fname[256];
+        snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded.img");
+        chomp_xz(fname);
         snprintf(out, sizeof(out), "%s%s%s", dir,
-                 (dir[strlen(dir)-1] == '/') ? "" : "/", fn);
+                 (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
         notify("Downloading %s -> %s\n", url, out);
         if (http_download(url, out) == 0)
           send_plain(cfd, 200, "Download complete. You can close this tab.");

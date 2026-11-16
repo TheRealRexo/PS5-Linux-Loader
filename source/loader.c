@@ -139,8 +139,8 @@ static const char *get_overridden_filename(const char *filename) {
     return from_webui;
 
   static int state = 0;
-  static char *overrides_start = nullptr;
-  static char *overrides_end = nullptr;
+  static char *overrides_start = NULL;
+  static char *overrides_end = NULL;
 
   if (state == 0) {
     state = 1;

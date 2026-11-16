@@ -228,6 +228,10 @@ jobs:
               echo "$base" >> dist/large.txt
             fi
           done
+          # Ensure large.txt is never empty (GitHub rejects 0-byte assets)
+          if [ ! -s dist/large.txt ]; then
+            echo "(no oversized assets)" > dist/large.txt
+          fi
           echo "large distros:"; cat dist/large.txt || true
           # fail if any oversized .xz slipped through
           for f in dist/*.img.xz; do

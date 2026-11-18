@@ -296,9 +296,11 @@ jobs:
             for f in dist/*.img.xz; do
               [ -f "$f" ] || continue
               base=$(basename "$f")
-              nparts=$(find dist -maxdepth 1 -name "${base}.part*" -type f | wc -l | tr -d ' ')
-              if [ "$nparts" -gt 0 ]; then
-                echo "- $base (${nparts} part(s): ${base}.part2 .. ${base}.part$((nparts + 1)))"
+              # Count ALL parts: part 1 (the canonical .img.xz) plus any
+              # .partN files. nparts is the total number of byte chunks.
+              nparts=$((1 + $(find dist -maxdepth 1 -name "${base}.part*" -type f | wc -l | tr -d ' ')))
+              if [ "$nparts" -gt 1 ]; then
+                echo "- $base (${nparts} parts: ${base} .. ${base}.part${nparts})"
               else
                 echo "- $base"
               fi

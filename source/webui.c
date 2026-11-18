@@ -400,6 +400,12 @@ static void render_manifest(int fd, const char *upload_dir) {
                "<input type=hidden name=url value='");
     send_str(fd, esc_url);
     send_str(fd, "'>"
+               "<input type=hidden name=parts value='");
+    char latest_parts_str[16];
+    snprintf(latest_parts_str, sizeof(latest_parts_str), "%d",
+             images_manifest_latest_parts);
+    send_str(fd, latest_parts_str);
+    send_str(fd, "'>"
                "<input type=text name=dir value='");
     send_str(fd, upload_dir);
     send_str(fd, "' placeholder='/mnt/usb0/' size=80>"

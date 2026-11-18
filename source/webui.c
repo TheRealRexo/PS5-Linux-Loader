@@ -422,6 +422,11 @@ static void render_manifest(int fd, const char *upload_dir) {
                "<input type=hidden name=url value='");
     send_str(fd, esc_url);
     send_str(fd, "'>"
+               "<input type=hidden name=parts value='");
+    char parts_str[16];
+    snprintf(parts_str, sizeof(parts_str), "%d", images_manifest[i].parts);
+    send_str(fd, parts_str);
+    send_str(fd, "'>"
                "<input type=text name=dir value='");
     send_str(fd, upload_dir);
     send_str(fd, "' placeholder='/mnt/usb0/' size=80>"
@@ -1099,117 +1104,97 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       read_body(cfd, req, total, clen);
       char *body = strstr(req, "\r\n\r\n");
       body = body ? body + 4 : req + total;
-      char *url = NULL, *dir = NULL;
+      char *url = NULL, *dir = NULL, *parts_str = NULL;
       form_get(body, "url", url, sizeof(url));
       form_get(body, "dir", dir, sizeof(dir));
+      form_get(body, "parts", parts_str, sizeof(parts_str));
       if (!dir[0])
         snprintf(dir, sizeof(dir), "%s", s->upload_dir);
       url_decode(url);
       url_decode(dir);
+      int nparts = 1;
+      if (parts_str[0]) {
+        nparts = atoi(parts_str);
+        if (nparts < 1) nparts = 1;
+      }
       if (url[0]) {
-        /* Determine whether this is a single-part or multi-part download.
-         * Single-part: URL ends in .img.xz
-         * Multi-part: URL contains .partN suffixes like .img.xz.part2
-         */
         char out[2048];
         const char *fn = strrchr(url, '/');
         char fname[256];
         snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded");
-        /* Check for .partN in the filename */
-        int nparts = 1;
-        char *dotpart = strstr(fname, ".part");
-        if (dotpart) {
-          /* Count .part occurrences to determine number of parts */
-          char *p = dotpart;
-          nparts = 1;
-          while ((p = strstr(p + 1, ".part")) != NULL) nparts++;
-          /* The stem is fname with .partN removed; the canonical .img.xz is part 1 */
-          char stem[512];
-          snprintf(stem, sizeof(stem), "%s", fname);
-          /* Remove trailing .partN */
-          char *last_dot = strrchr(stem, '.');
-          if (last_dot && strstr(last_dot, "part")) *last_dot = '\0';
-          /* Strip .img suffix if present */
-          char *img_suffix = strrchr(stem, '.');
-          if (img_suffix && strcmp(img_suffix, ".img") == 0) *img_suffix = '\0';
-          /* stem is now e.g. "ps5-ubuntu2604-os" */
-          /* Build URLs: part 1 = stem.img.xz, parts 2..N = stem.img.xz.partN */
-          char base_url[1024];
-          snprintf(base_url, sizeof(base_url),
-                   "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/download");
-          /* Download all parts and concatenate into out */
-          snprintf(out, sizeof(out), "%s%s%s", dir,
-                   (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
-          /* Build part URLs, download all parts, then decompress in-payload
-           * to a raw bootable .img so "Download here" ends in a ready-to-boot
-           * image, not .img.xz. */
-          char *part_urls[16];
-          char *part_paths[16] = {0};
-          for (int i = 0; i < nparts; i++) {
-            char part_path[512];
-            if (i == 0) {
-              snprintf(part_path, sizeof(part_path), "%s.img.xz", stem);
-            } else {
-              snprintf(part_path, sizeof(part_path), "%s.img.xz.part%d", stem, i);
-            }
-            part_urls[i] = malloc(strlen(base_url) + strlen(part_path) + 2);
-            snprintf(part_urls[i], strlen(base_url) + strlen(part_path) + 2,
-                     "%s/%s", base_url, part_path);
-          }
-          if (http_download_parts((const char *const *)part_urls, nparts,
-                                  part_paths) == 0) {
-            int img_fd = open(out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (img_fd < 0) {
-              notify("multi-part: cannot create raw .img at %s\n", out);
-            } else {
-              uint64_t img_bytes = 0;
-              int rc = xzimg_decode((const char *const *)part_paths, nparts,
-                                    img_fd, &img_bytes, NULL, NULL);
-              close(img_fd);
-              if (rc != 0) {
-                unlink(out);
-                notify("multi-part: XZ decode failed (%llu bytes)\n",
-                       (unsigned long long)img_bytes);
-              } else {
-                notify("Downloaded + decompressed %llu raw bytes to %s\n",
-                       (unsigned long long)img_bytes, out);
-                send_plain(cfd, 200,
-                  "Download complete. You can close this tab.");
-                for (int i = 0; i < nparts; i++) {
-                  if (part_paths[i]) {
-                    unlink(part_paths[i]);
-                    free(part_paths[i]);
-                  }
-                  free(part_urls[i]);
-                }
-                free(url);
-                free(dir);
-                goto done_download;
-              }
-            }
-          }
-          /* Fall through to error: clean up any remaining parts */
-          for (int i = 0; i < nparts; i++) {
-            if (part_paths[i]) {
-              unlink(part_paths[i]);
-              free(part_paths[i]);
-            }
-            free(part_urls[i]);
-          }
-        } else {
-          /* Single-part download: URL ends in .img.xz */
-          char fname[256];
-          snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded.img");
-          chomp_xz(fname); /* strip .xz to get the stem */
-          snprintf(out, sizeof(out), "%s%s%s", dir,
-                   (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
-          notify("Downloading %s -> %s\n", url, out);
-          if (http_download(url, out) == 0)
-            send_plain(cfd, 200,
-              "Download complete. You can close this tab.");
-          else
-            send_plain(cfd, 500, "Download failed.");
+        /* The manifest provides the number of parts via the form field.
+         * Build URLs for all parts and decompress XZ in-payload to produce
+         * a raw bootable .img. */
+        char stem[512];
+        snprintf(stem, sizeof(stem), "%s", fname);
+        /* Strip .img.xz to get the stem */
+        {
+          char *p = strstr(stem, ".img.xz");
+          if (p) *p = '\0';
         }
+        /* stem is now e.g. "ps5-ubuntu2604-os" */
+        char base_url[1024];
+        snprintf(base_url, sizeof(base_url),
+                 "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/latest/download");
+        snprintf(out, sizeof(out), "%s%s%s.img", dir,
+                 (dir[strlen(dir)-1] == '/') ? "" : "/", stem);
+        /* Build part URLs, download all parts, then decompress in-payload
+         * to a raw bootable .img so "Download here" ends in a ready-to-boot
+         * image, not .img.xz. */
+        char *part_urls[16];
+        char *part_paths[16] = {0};
+        for (int i = 0; i < nparts; i++) {
+          char part_path[512];
+          if (i == 0) {
+            snprintf(part_path, sizeof(part_path), "%s.img.xz", stem);
+          } else {
+            snprintf(part_path, sizeof(part_path), "%s.img.xz.part%d", stem, i + 1);
+          }
+          part_urls[i] = malloc(strlen(base_url) + strlen(part_path) + 2);
+          snprintf(part_urls[i], strlen(base_url) + strlen(part_path) + 2,
+                   "%s/%s", base_url, part_path);
+        }
+        if (http_download_parts((const char *const *)part_urls, nparts,
+                                part_paths) == 0) {
+          int img_fd = open(out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+          if (img_fd < 0) {
+            notify("download: cannot create raw .img at %s\n", out);
+          } else {
+            uint64_t img_bytes = 0;
+            int rc = xzimg_decode((const char *const *)part_paths, nparts,
+                                  img_fd, &img_bytes, NULL, NULL);
+            close(img_fd);
+            if (rc != 0) {
+              unlink(out);
+              notify("download: XZ decode failed (%llu bytes)\n",
+                     (unsigned long long)img_bytes);
+            } else {
+              notify("Downloaded + decompressed %llu raw bytes to %s\n",
+                     (unsigned long long)img_bytes, out);
+              send_plain(cfd, 200,
+                "Download complete. You can close this tab.");
+              for (int i = 0; i < nparts; i++) {
+                if (part_paths[i]) {
+                  unlink(part_paths[i]);
+                  free(part_paths[i]);
+                }
+                free(part_urls[i]);
+              }
+              free(url);
+              free(dir);
+              goto done_download;
+            }
+          }
+        }
+        /* Fall through to error: clean up any remaining parts */
+        for (int i = 0; i < nparts; i++) {
+          if (part_paths[i]) {
+            unlink(part_paths[i]);
+            free(part_paths[i]);
+          }
+          free(part_urls[i]);
+        }
+        send_plain(cfd, 500, "Download failed.");
       } else {
         send_plain(cfd, 400, "Missing url.");
       }

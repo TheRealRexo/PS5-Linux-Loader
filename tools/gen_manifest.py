@@ -7,10 +7,11 @@ WebUI renders these so the user can download the official OS image straight
 from the GitHub release (in-payload HTTP download).
 
 Each image entry is either:
-  - single-part:  "filename": "ps5-arch-os.img"          -> <base>/ps5-arch-os.img
-  - multi-part:   "filename": "ps5-bazzite-os.img", "parts": 2
-                   -> <base>/ps5-bazzite-os.img.part1, .part2, ...
-  where <base> is "https://github.com/<repo>/releases/latest".
+  - single-part:  "filename": "ps5-arch-os"  -> <base>/ps5-arch-os.img.xz
+  - multi-part:   "filename": "ps5-bazzite-os", "parts": 2
+                   -> <base>/ps5-bazzite-os.img.xz, .img.xz.part2, ...
+  where <base> is "https://github.com/<repo>/releases/download".
+  The filename is the stem; .img.xz is appended by part_url().
 
 The .json itself is committed to the repo; this header is a build-time render
 of it so the payload works offline.
@@ -38,9 +39,21 @@ def c_str(s):
 
 
 def part_url(base, filename, part):
+    """Generate URL for part `part` of `filename`.
+
+    - filename can be "ps5-arch-os", "ps5-arch-os.img", or "ps5-arch-os.img.xz"
+    - part 1 returns <base>/<filename>.img.xz
+    - parts 2..N return <base>/<filename>.img.xz.partN  (with .img.xz stem preserved)
+    """
+    # Normalize: strip any existing .img or .img.xz suffix
+    stem = filename
+    if stem.endswith(".img.xz"):
+        stem = stem[:-7]
+    elif stem.endswith(".img"):
+        stem = stem[:-4]
     if part <= 1:
-        return "%s/%s" % (base, filename)
-    return "%s/%s.part%d" % (base, filename, part)
+        return "%s/%s.img.xz" % (base, stem)
+    return "%s/%s.img.xz.part%d" % (base, stem, part)
 
 
 def main():

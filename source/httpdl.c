@@ -46,6 +46,42 @@ static void net_fini(void) {
   if (g_netMemId != -1) { sceNetPoolDestroy(g_netMemId); g_netMemId = -1; }
 }
 
+int http_download_parts(const char *const *urls, int nparts, int out_fd) {
+  if (!urls || nparts < 1 || out_fd < 0) return -1;
+  /* Download each part sequentially and concatenate bytes into out_fd.
+   * The parts are byte chunks of one XZ stream, so sequential download
+   * followed by sequential feeding to xzimg_decode will produce a raw .img.
+   * This function just writes the raw HTTP data to out_fd in order.
+   */
+  int failed = 0;
+  char buf[0x8000];
+  for (int i = 0; i < nparts && !failed; i++) {
+    /* Temporarily download each part to a temp file, then concatenate.
+     * Full streaming-into-out_fd would require hooking into HTTP read
+     * callbacks, but this is sufficient for the WebUI integration.
+     */
+    char part_path[512];
+    snprintf(part_path, sizeof(part_path), "/tmp/ps5_parts/%d.img.xz", i);
+    /* Ensure temp dir exists */
+    mkdir("/tmp/ps5_parts", 0755);
+    if (http_download(urls[i], part_path) != 0) {
+      failed = 1;
+      break;
+    }
+    /* Read the downloaded part and write to out_fd */
+    int part_fd = open(part_path, O_RDONLY);
+    if (part_fd < 0) { failed = 1; break; }
+    ssize_t n;
+    while ((n = read(part_fd, buf, sizeof(buf))) > 0) {
+      if (write(out_fd, buf, n) != n) { failed = 1; break; }
+    }
+    close(part_fd);
+    unlink(part_path); /* cleanup */
+    if (failed) break;
+  }
+  return failed ? -1 : 0;
+}
+
 int http_download(const char *url, const char *out_path) {
   if (!url || !out_path) return -1;
   if (net_init() != 0) { net_fini(); return -1; }

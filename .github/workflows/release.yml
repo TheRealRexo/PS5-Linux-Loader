@@ -210,38 +210,44 @@ jobs:
       - name: Copy images manifest
         run: cp tools/images.json dist/images.json
 
-      - name: Partition oversized assets
+      - name: Split images >2 GB into ≤2 GB parts
         run: |
           set -euo pipefail
-          mkdir -p dist/large
           : > dist/large.txt
+          # GitHub release assets are capped at 2147483647 bytes (2 GiB - 1).
+          # Any .img.xz over that limit is split into consecutive byte chunks:
+          #   <name>.img.xz          (part 1, the canonical name)
+          #   <name>.img.xz.part2    (part 2)
+          #   <name>.img.xz.part3    (part 3) ...
+          # The payload downloads part 1..N and streams all of them through the
+          # vendored XZ decoder, so "Download here" ends in a raw .img.
           for f in dist/*.img.xz; do
             [ -f "$f" ] || continue
+            base=$(basename "$f")
             sz=$(stat -c %s "$f")
             if [ "$sz" -gt 2147483647 ]; then
-              base=$(basename "$f")
-              echo "oversized (>$((2*1024*1024*1024)) B): $base ($sz bytes) -> skipping GitHub asset"
-              mv "$f" "dist/large/$base"
-              # remove any partial/corrupt leftover with the same name
-              rm -f "dist/$base"
-              # keep its checksum/descriptor in dist so they still ship
-              echo "$base" >> dist/large.txt
+              echo "splitting $base ($sz bytes)"
+              tmpdir=$(mktemp -d)
+              split -b 2147483647 -d -a 3 "$f" "$tmpdir/chunk"
+              i=1
+              for p in "$tmpdir"/chunk*; do
+                if [ "$i" -eq 1 ]; then
+                  mv "$p" "dist/$base"
+                else
+                  mv "$p" "dist/${base}.part$i"
+                fi
+                i=$((i + 1))
+              done
+              rm -rf "$tmpdir"
+              echo "$base: split into $((i - 1)) parts" >> dist/large.txt
+            else
+              echo "$base: single part ($sz bytes)" >> dist/large.txt
             fi
           done
-          # Ensure large.txt is never empty (GitHub rejects 0-byte assets)
           if [ ! -s dist/large.txt ]; then
             echo "(no oversized assets)" > dist/large.txt
           fi
-          echo "large distros:"; cat dist/large.txt || true
-          # fail if any oversized .xz slipped through
-          for f in dist/*.img.xz; do
-            [ -f "$f" ] || continue
-            sz=$(stat -c %s "$f")
-            if [ "$sz" -gt 2147483647 ]; then
-              echo "ERROR: oversized asset still in dist/: $f" >&2
-              exit 1
-            fi
-          done
+          echo "split status:"; cat dist/large.txt
 
       - name: Assemble checksums
         run: |
@@ -284,10 +290,18 @@ jobs:
             echo "set VRAM, and click Boot Linux. Transfer large .img files over FTP"
             echo "(port 21) while the page is open."
             echo
-            echo "OS images attached to this release (wrapped, <=2 GB):"
+            echo "OS images attached to this release (each .img.xz, or its"
+            echo "≤2 GB parts, is a release asset; the payload downloads all"
+            echo "parts and decompresses XZ in-payload to produce the raw .img):"
             for f in dist/*.img.xz; do
               [ -f "$f" ] || continue
-              echo "- $(basename "$f")"
+              base=$(basename "$f")
+              nparts=$(ls dist/"${base}".part* 2>/dev/null | wc -l | tr -d ' ')
+              if [ "$nparts" -gt 0 ]; then
+                echo "- $base (${nparts} part(s): ${base}.part2 .. ${base}.part$((nparts + 1)))"
+              else
+                echo "- $base"
+              fi
             done
             echo
             echo "Boot files for USB-free setups (each tarball holds bzImage,"
@@ -302,10 +316,7 @@ jobs:
             echo "- images.json"
             echo
             if [ -s dist/large.txt ]; then
-              echo "OS images larger than GitHub's 2 GB per-asset limit ship their boot"
-              echo "tarballs, checksums (.sha256) and descriptors (.osimage) here; their"
-              echo ".xz is not attached (too big for a release asset). Download the .img.xz"
-              echo "from the R2 mirror URL in images.json:"
+              echo "Images split into ≤2 GB parts (GitHub per-asset limit = 2 GiB - 1):"
               while IFS= read -r n; do [ -n "$n" ] && echo "- $n"; done < dist/large.txt
             fi
             echo
@@ -332,9 +343,9 @@ jobs:
             dist/payload.sha256
             dist/images.json
             dist/*.img.xz
+            dist/*.img.xz.part*
             dist/*.img.xz.sha256
             dist/*.img.osimage
             dist/*-boot.tar.gz
-            dist/large.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

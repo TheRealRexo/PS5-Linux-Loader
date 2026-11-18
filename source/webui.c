@@ -1098,7 +1098,7 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       read_body(cfd, req, total, clen);
       char *body = strstr(req, "\r\n\r\n");
       body = body ? body + 4 : req + total;
-      char url[1024] = {0}, dir[1024] = {0};
+      char *url = NULL, *dir = NULL;
       form_get(body, "url", url, sizeof(url));
       form_get(body, "dir", dir, sizeof(dir));
       if (!dir[0])
@@ -1106,21 +1106,93 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       url_decode(url);
       url_decode(dir);
       if (url[0]) {
+        /* Determine whether this is a single-part or multi-part download.
+         * Single-part: URL ends in .img.xz
+         * Multi-part: URL contains .partN suffixes like .img.xz.part2
+         */
         char out[2048];
         const char *fn = strrchr(url, '/');
         char fname[256];
-        snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded.img");
-        chomp_xz(fname);
-        snprintf(out, sizeof(out), "%s%s%s", dir,
-                 (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
-        notify("Downloading %s -> %s\n", url, out);
-        if (http_download(url, out) == 0)
-          send_plain(cfd, 200, "Download complete. You can close this tab.");
-        else
-          send_plain(cfd, 500, "Download failed.");
+        snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded");
+        /* Check for .partN in the filename */
+        int nparts = 1;
+        char *dotpart = strstr(fname, ".part");
+        if (dotpart) {
+          /* Count .part occurrences to determine number of parts */
+          char *p = dotpart;
+          nparts = 1;
+          while ((p = strstr(p + 1, ".part")) != NULL) nparts++;
+          /* The stem is fname with .partN removed; the canonical .img.xz is part 1 */
+          char stem[512];
+          snprintf(stem, sizeof(stem), "%s", fname);
+          /* Remove trailing .partN */
+          char *last_dot = strrchr(stem, '.');
+          if (last_dot && strstr(last_dot, "part")) *last_dot = '\0';
+          /* Strip .img suffix if present */
+          char *img_suffix = strrchr(stem, '.');
+          if (img_suffix && strcmp(img_suffix, ".img") == 0) *img_suffix = '\0';
+          /* stem is now e.g. "ps5-ubuntu2604-os" */
+          /* Build URLs: part 1 = stem.img.xz, parts 2..N = stem.img.xz.partN */
+          char base_url[1024];
+          snprintf(base_url, sizeof(base_url),
+                   "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/download");
+          /* Download all parts and concatenate into out */
+          snprintf(out, sizeof(out), "%s%s%s", dir,
+                   (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
+          /* Open output file and download all parts into it */
+          int fd = open(out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+          if (fd >= 0) {
+            /* Build part URLs */
+            char *part_urls[16];
+            for (int i = 0; i < nparts; i++) {
+              char part_path[512];
+              if (i == 0) {
+                snprintf(part_path, sizeof(part_path), "%s.img.xz", stem);
+              } else {
+                snprintf(part_path, sizeof(part_path), "%s.img.xz.part%d", stem, i);
+              }
+              part_urls[i] = malloc(strlen(base_url) + strlen(part_path) + 2);
+              snprintf(part_urls[i], strlen(base_url) + strlen(part_path) + 2,
+                       "%s/%s", base_url, part_path);
+            }
+            /* Download all parts via http_download_parts */
+            if (http_download_parts((const char *const *)part_urls, nparts, fd) == 0) {
+              /* Success: file at out now contains concatenated .img.xz parts */
+              notify("Downloaded multi-part image to %s\n", out);
+              /* Free URLs and close */
+              for (int i = 0; i < nparts; i++) free(part_urls[i]);
+              close(fd);
+              send_plain(cfd, 200,
+                "Download complete. You can close this tab.");
+              free(url);
+              free(dir);
+              goto done_download;
+            }
+            close(fd);
+          }
+          /* Fall through to error */
+          for (int i = 0; i < nparts; i++) free(part_urls[i]);
+        } else {
+          /* Single-part download: URL ends in .img.xz */
+          char fname[256];
+          snprintf(fname, sizeof(fname), "%s", fn ? fn : "downloaded.img");
+          chomp_xz(fname); /* strip .xz to get the stem */
+          snprintf(out, sizeof(out), "%s%s%s", dir,
+                   (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
+          notify("Downloading %s -> %s\n", url, out);
+          if (http_download(url, out) == 0)
+            send_plain(cfd, 200,
+              "Download complete. You can close this tab.");
+          else
+            send_plain(cfd, 500, "Download failed.");
+        }
       } else {
         send_plain(cfd, 400, "Missing url.");
       }
+      free(url);
+      free(dir);
+      goto done_download;
+done_download:
       close(cfd);
     } else {
       send_plain(cfd, 404, "Not found.");

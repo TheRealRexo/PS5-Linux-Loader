@@ -1141,7 +1141,7 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
         /* stem is now e.g. "ps5-ubuntu2604-os" */
         char base_url[1024];
         snprintf(base_url, sizeof(base_url),
-                 "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/latest/download");
+                 "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/download/v1.0.0");
         snprintf(out, sizeof(out), "%s%s%s.img", dir,
                  (dir[strlen(dir)-1] == '/') ? "" : "/", stem);
         /* Build part URLs, download all parts, then decompress in-payload

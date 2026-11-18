@@ -1,6 +1,6 @@
 # ps5-linux-loader (fork)
 
-**ps5-linux-loader** boots Linux on a jailbroken PS5 (rest-mode resume) by defeating the hypervisor. Powered by 8 CPU cores (16 threads) at 3.5 GHz and a GPU at 2.23 GHz, it turns your PS5 Phat, Slim or Pro running **3.00–13.60** into a capable desktop PC for Steam games and emulators.
+**ps5-linux-loader** boots Linux on a jailbroken PS5 (rest-mode resume) by defeating the hypervisor. Powered by 8 CPU cores (16 threads) at 3.5 GHz and a GPU at 2.23 GHz, it turns your PS5 Phat, Slim or Pro running **13.00, 13.20, 13.40, 13.42, or 13.60** into a capable desktop PC for Steam games and emulators.
 
 This repository is **TheRealRexo's fork** of the upstream [ps5-linux/ps5-linux-loader](https://github.com/ps5-linux/ps5-linux-loader). It adds a built-in WebUI + anonymous FTP server, M.2 install tools that store the OS as a single `.img` file, USB-less boot, and an in-payload "Download here" button to fetch official OS images straight from the GitHub release.
 
@@ -16,11 +16,11 @@ This repository is **TheRealRexo's fork** of the upstream [ps5-linux/ps5-linux-l
 
 ## What's new in this fork
 
-- **Multi-firmware support**: 3.00–13.60 (Phat/Slim) and 13.60 (Pro), auto-selected from the running firmware
+- **Multi-firmware HV exploit**: 3.00–7.61, 11.60, 12.xx, and 13.00/13.20/13.40/13.42/13.60 (Phat/Slim); 13.60 (Pro), auto-selected from the running firmware. Only 13.xx firmwares support REXO fork features (M.2 install, USB-less boot, in-payload downloads).
 - **Built-in WebUI** on port 8080 (no auto-boot) + anonymous FTP on port 21
 - **OS-image picker**, boot/install target selector, install-size field, VRAM setting
 - **File manager** (list / upload / delete), including `/mnt/ext1` for USB-free setups
-- **In-payload "Download here"**: fetch official OS images from the GitHub release straight onto the console (multi-part aware)
+- **In-payload "Download here"**: fetch official OS images from the GitHub release straight onto the console (multi-part aware). Uses direct tagged-release URLs to avoid HTTP 302 redirects — required because the SCE HTTP2 client on the PS5 does not follow redirects automatically.
 - **Hardware / driver support table** (GPU, WiFi/Bluetooth, Ethernet, audio, NVMe, USB)
 - **M.2 install tools** (`m2_init`, `ps5-osinstall`, `ps5-osexec`) storing the OS as a single `.img`
 - **Loop-mounted `.img` boot**: patched initrd re-scans the NVMe GPT (BLKRRPART), searches M.2 → USB, regenerates `root=LABEL=...` automatically
@@ -29,10 +29,12 @@ This repository is **TheRealRexo's fork** of the upstream [ps5-linux/ps5-linux-l
 
 | Model | Supported firmwares | M.2 |
 |-------|---------------------|-----|
-| PS5 Phat & Slim | 3.00, 3.10, 3.20, 3.21 (no M.2) · 4.00–7.61 · 11.60 · 13.00, 13.20, 13.60 | Yes (except 3.xx) (11.60 untested) |
+| PS5 Phat & Slim | 3.00–7.61 · 11.60 · 12.xx · 13.00, 13.20, 13.40, 13.42, 13.60 | Yes (except 3.xx; 11.60 untested) |
 | PS5 Pro | 13.60 | Yes |
 
 Support for 1.xx / 2.xx may come later. You cannot downgrade firmware.
+
+**Only 13.xx (particularly 13.60) supports the REXO fork features:** M.2 install tools, USB-less boot, in-payload "Download here", and `/mnt/ext1` searches. Older firmwares boot Linux through upstream paths but do not include these features.
 
 ## USB-less boot
 

@@ -1,6 +1,6 @@
 {
   "name": "PS5 Linux Loader - OS Images",
-  "base_url": "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/latest/download",
+  "base_url": "https://github.com/TheRealRexo/PS5-Linux-Loader/releases/download/v1.0.0",
   "repo": "TheRealRexo/PS5-Linux-Loader",
   "latest": {
     "name": "Ubuntu 26.04",

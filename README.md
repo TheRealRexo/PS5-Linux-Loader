@@ -20,7 +20,7 @@ This repository is **TheRealRexo's fork** of the upstream [ps5-linux/ps5-linux-l
 - **Built-in WebUI** on port 8080 (no auto-boot) + anonymous FTP on port 21
 - **OS-image picker**, boot/install target selector, install-size field, VRAM setting
 - **File manager** (list / upload / delete), including `/mnt/ext1` for USB-free setups
-- **In-payload "Download here"**: fetch official OS images from the R2 mirror straight onto the console
+- **In-payload "Download here"**: fetch official OS images from the GitHub release straight onto the console (multi-part aware)
 - **Hardware / driver support table** (GPU, WiFi/Bluetooth, Ethernet, audio, NVMe, USB)
 - **M.2 install tools** (`m2_init`, `ps5-osinstall`, `ps5-osexec`) storing the OS as a single `.img`
 - **Loop-mounted `.img` boot**: patched initrd re-scans the NVMe GPT (BLKRRPART), searches M.2 → USB, regenerates `root=LABEL=...` automatically
@@ -36,7 +36,9 @@ Support for 1.xx / 2.xx may come later. You cannot downgrade firmware.
 
 ## USB-less boot
 
-The payload downloads the OS image directly from the R2 mirror (in-payload "Download here", or the `images.json` URLs), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2/internal ssd. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+The payload downloads the OS image directly from the GitHub release (in-payload "Download here", or the `images.json` URLs), derives `cmdline.txt` (root label) and `vram.txt` from the selected `.img`, and the patched initrd loop-mounts the `.img` from the M.2/internal ssd. No USB stick is required: the PS5 kernel ships the NVMe driver and shifted-GPT support, and `ps5-osinstall` (baked into every wrapped image) handles installation.
+
+**Multi-part download**: large images (>2 GB) ship as ≤2 GB parts. The payload's "Download here" fetches all parts, concatenates them, and decompresses XZ in-payload to produce the raw `.img` bootable image.
 
 **The only file you download is the `.img`.** All the other boot files (`bzImage`, `initrd.img`, `cmdline.txt`, `vram.txt`) and the install-time parameters are generated/managed by the payload from what you put in the WebUI:
 
@@ -89,9 +91,15 @@ Each tagged release ships:
 - `ps5-linux-loader.elf` + `m2_init` / `ps5-osinstall` / `ps5-osexec` (with checksums).
 - Wrapped OS images: `ps5-<distro>-os.img.xz` (ubuntu2604, arch, cachyos, fedora, proxmox, debian, bazzite, bazzite-deck, steamos).
 - Boot tarballs: `ps5-<distro>-boot.tar.gz` (bzImage, initrd.img, cmdline.txt, vram.txt; initrd patched to loop-mount the `.img`).
-- `images.json` — manifest of latest `.img` download URLs (R2 mirror).
+- `images.json` — manifest of `.img.xz` download URLs (GitHub release assets).
 
-Images >2 GB ship their boot tarballs, checksums (.sha256) and descriptors (.osimage) here; their `.xz` is not attached (too big for a release asset). Download the `.img.xz` from the R2 mirror URL in `images.json`.
+**Images >2 GB are split into ≤2 GB parts.** GitHub caps per-asset size at 2 GiB − 1 bytes, so any `.img.xz` over that limit is split into consecutive byte chunks:
+
+- `ps5-<distro>-os.img.xz` — part 1 (canonical name)
+- `ps5-<distro>-os.img.xz.part2` — part 2
+- `ps5-<distro>-os.img.xz.part3` — part 3, etc.
+
+The payload's "Download here" button fetches all parts, concatenates them, and decompresses XZ in-payload to produce the raw `.img` bootable image. You never need to manually concatenate or decompress — the loader does it for you.
 
 **You only ever download the `.img`.** The release's boot tarballs / generated files are convenience artifacts — the payload itself generates the boot configuration from the WebUI settings and the selected image. See [USB-less boot](#usb-less-boot).
 

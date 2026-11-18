@@ -12,14 +12,15 @@ include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
 
 BIN := bin/ps5-linux-loader.elf
 SRC := $(wildcard source/*.c)
-OBJS := $(SRC:.c=.o)
+LZMA_SRC := $(wildcard source/lzma/*.c)
+OBJS := $(SRC:.c=.o) $(LZMA_SRC:.c=.o)
 
 # Build-time render of tools/images.json into a C header the payload embeds.
 # The payload WebUI lists the official .img download URLs so the user can
 # download the image (R2) and transfer it to the PS5 (USB or M.2 via FTP).
 GEN_MANIFEST := include/images_manifest.h
 
-CFLAGS  := -std=c23 -Wall -Iinclude
+CFLAGS  := -std=c23 -Wall -DZ7_ST -DZ7_CRC_NUM_TABLES=1 -Iinclude -Isource/lzma
 LDFLAGS := -L$(PS5_PAYLOAD_SDK)/target/lib -lSceHttp2 -lSceHttp -lSceSsl -lSceNet -lSceNetCtl -lpthread
 
 all: $(GEN_MANIFEST) $(BIN)

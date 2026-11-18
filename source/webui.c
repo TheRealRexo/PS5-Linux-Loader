@@ -1,5 +1,6 @@
 #include "webui.h"
 #include "httpdl.h"
+#include "xzimg.h"
 #include "utils.h"
 #include "images_manifest.h"
 
@@ -1139,39 +1140,62 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
           /* Download all parts and concatenate into out */
           snprintf(out, sizeof(out), "%s%s%s", dir,
                    (dir[strlen(dir)-1] == '/') ? "" : "/", fname);
-          /* Open output file and download all parts into it */
-          int fd = open(out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-          if (fd >= 0) {
-            /* Build part URLs */
-            char *part_urls[16];
-            for (int i = 0; i < nparts; i++) {
-              char part_path[512];
-              if (i == 0) {
-                snprintf(part_path, sizeof(part_path), "%s.img.xz", stem);
-              } else {
-                snprintf(part_path, sizeof(part_path), "%s.img.xz.part%d", stem, i);
-              }
-              part_urls[i] = malloc(strlen(base_url) + strlen(part_path) + 2);
-              snprintf(part_urls[i], strlen(base_url) + strlen(part_path) + 2,
-                       "%s/%s", base_url, part_path);
+          /* Build part URLs, download all parts, then decompress in-payload
+           * to a raw bootable .img so "Download here" ends in a ready-to-boot
+           * image, not .img.xz. */
+          char *part_urls[16];
+          char *part_paths[16] = {0};
+          for (int i = 0; i < nparts; i++) {
+            char part_path[512];
+            if (i == 0) {
+              snprintf(part_path, sizeof(part_path), "%s.img.xz", stem);
+            } else {
+              snprintf(part_path, sizeof(part_path), "%s.img.xz.part%d", stem, i);
             }
-            /* Download all parts via http_download_parts */
-            if (http_download_parts((const char *const *)part_urls, nparts, fd) == 0) {
-              /* Success: file at out now contains concatenated .img.xz parts */
-              notify("Downloaded multi-part image to %s\n", out);
-              /* Free URLs and close */
-              for (int i = 0; i < nparts; i++) free(part_urls[i]);
-              close(fd);
-              send_plain(cfd, 200,
-                "Download complete. You can close this tab.");
-              free(url);
-              free(dir);
-              goto done_download;
-            }
-            close(fd);
+            part_urls[i] = malloc(strlen(base_url) + strlen(part_path) + 2);
+            snprintf(part_urls[i], strlen(base_url) + strlen(part_path) + 2,
+                     "%s/%s", base_url, part_path);
           }
-          /* Fall through to error */
-          for (int i = 0; i < nparts; i++) free(part_urls[i]);
+          if (http_download_parts((const char *const *)part_urls, nparts,
+                                  part_paths) == 0) {
+            int img_fd = open(out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (img_fd < 0) {
+              notify("multi-part: cannot create raw .img at %s\n", out);
+            } else {
+              uint64_t img_bytes = 0;
+              int rc = xzimg_decode((const char *const *)part_paths, nparts,
+                                    img_fd, &img_bytes, NULL, NULL);
+              close(img_fd);
+              if (rc != 0) {
+                unlink(out);
+                notify("multi-part: XZ decode failed (%llu bytes)\n",
+                       (unsigned long long)img_bytes);
+              } else {
+                notify("Downloaded + decompressed %llu raw bytes to %s\n",
+                       (unsigned long long)img_bytes, out);
+                send_plain(cfd, 200,
+                  "Download complete. You can close this tab.");
+                for (int i = 0; i < nparts; i++) {
+                  if (part_paths[i]) {
+                    unlink(part_paths[i]);
+                    free(part_paths[i]);
+                  }
+                  free(part_urls[i]);
+                }
+                free(url);
+                free(dir);
+                goto done_download;
+              }
+            }
+          }
+          /* Fall through to error: clean up any remaining parts */
+          for (int i = 0; i < nparts; i++) {
+            if (part_paths[i]) {
+              unlink(part_paths[i]);
+              free(part_paths[i]);
+            }
+            free(part_urls[i]);
+          }
         } else {
           /* Single-part download: URL ends in .img.xz */
           char fname[256];

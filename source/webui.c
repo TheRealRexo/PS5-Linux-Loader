@@ -386,32 +386,6 @@ static void render_manifest(int fd, const char *upload_dir) {
                "<table>"
                "<tr><td>Distro</td><td class=num>.img.xz</td>"
                "<td>Download (R2) to this dir</td></tr>");
-  {
-    char esc_name[256], esc_url[512], esc_file[256];
-    html_escape(images_manifest_latest_name, esc_name, sizeof(esc_name));
-    html_escape(images_manifest_latest_url, esc_url, sizeof(esc_url));
-    const char *file = strrchr(images_manifest_latest_url, '/');
-    file = file ? file + 1 : images_manifest_latest_url;
-    html_escape(file, esc_file, sizeof(esc_file));
-    send_str(fd, "<tr><td>LATEST</td><td class=num>");
-    send_str(fd, esc_file);
-    send_str(fd, "</td><td><form method=post action='/download' "
-               "style='display:inline;margin-left:6px'>"
-               "<input type=hidden name=url value='");
-    send_str(fd, esc_url);
-    send_str(fd, "'>"
-               "<input type=hidden name=parts value='");
-    char latest_parts_str[16];
-    snprintf(latest_parts_str, sizeof(latest_parts_str), "%d",
-             images_manifest_latest_parts);
-    send_str(fd, latest_parts_str);
-    send_str(fd, "'>"
-               "<input type=text name=dir value='");
-    send_str(fd, upload_dir);
-    send_str(fd, "' placeholder='/mnt/usb0/' size=80>"
-               "<button class='btn' type=submit>Download here (latest)</button>"
-               "</form></td></tr>");
-  }
   for (size_t i = 0; i < images_manifest_count; i++) {
     char esc_name[256], esc_url[512], esc_file[256];
     html_escape(images_manifest[i].name, esc_name, sizeof(esc_name));

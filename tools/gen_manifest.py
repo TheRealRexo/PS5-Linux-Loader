@@ -99,35 +99,8 @@ def main():
         url = part_url(base, filename, 1)
         lines.append("    { %s, %s, %d }," % (c_str(name), c_str(url), parts))
 
-    latest = data.get("latest") or {}
-    if isinstance(latest, dict):
-        latest_name = latest.get("name") or ""
-        latest_filename = latest.get("filename", "")
-        latest_parts = int(latest.get("parts", 1) or 1)
-        if latest_parts < 1:
-            latest_parts = 1
-    elif isinstance(latest, str):
-        latest_name = ""
-        latest_filename = latest
-        latest_parts = 1
-    else:
-        latest_name = ""
-        latest_filename = ""
-        latest_parts = 1
-    if not latest_filename and items:
-        latest_name = latest_name or items[0][1].get("name", items[0][0])
-        latest_filename = items[0][1].get("filename", "")
-        latest_parts = int(items[0][1].get("parts", 1) or 1)
-    latest_url = part_url(base, latest_filename, 1)
-
     lines += [
         "};",
-        "",
-        "static const char *images_manifest_latest_name = ",
-        "    %s;" % c_str(latest_name),
-        "static const char *images_manifest_latest_url = ",
-        "    %s;" % c_str(latest_url),
-        "static const int images_manifest_latest_parts = %d;" % latest_parts,
         "",
         "static const size_t images_manifest_count =",
         "    sizeof(images_manifest) / sizeof(images_manifest[0]);",

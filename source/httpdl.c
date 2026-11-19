@@ -23,6 +23,10 @@ int sceHttp2DeleteRequest(int);
 int sceHttp2SendRequest(int, const void*, size_t);
 int sceHttp2GetStatusCode(int, int*);
 int sceHttp2ReadData(int, void*, size_t);
+/* GitHub release assets 302-redirect to the CDN; the SCE HTTP2 client
+ * does not follow redirects by default, so every download returned a
+ * non-200 status and failed. Enable auto-redirect on the request. */
+int sceHttp2SetAutoRedirect(int, int);
 
 static int g_netMemId = -1, g_sslCtxId = -1, g_httpCtxId = -1;
 static int g_tmplId = -1, g_reqId = -1;
@@ -76,6 +80,9 @@ int http_download(const char *url, const char *out_path) {
 
   g_reqId = sceHttp2CreateRequestWithURL(g_tmplId, "GET", url, 0);
   if (g_reqId < 0) { net_fini(); return -1; }
+
+  /* Follow GitHub's 302 redirect to the release-asset CDN. */
+  if (sceHttp2SetAutoRedirect(g_reqId, 1) != 0) { net_fini(); return -1; }
 
   if (sceHttp2SendRequest(g_reqId, NULL, 0) != 0) { net_fini(); return -1; }
 

@@ -1110,7 +1110,7 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       read_body(cfd, req, total, clen);
       char *body = strstr(req, "\r\n\r\n");
       body = body ? body + 4 : req + total;
-      char *url = NULL, *dir = NULL, *parts_str = NULL;
+      char url[2048] = {0}, dir[1024] = {0}, parts_str[32] = {0};
       form_get(body, "url", url, sizeof(url));
       form_get(body, "dir", dir, sizeof(dir));
       form_get(body, "parts", parts_str, sizeof(parts_str));
@@ -1186,8 +1186,6 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
                 }
                 free(part_urls[i]);
               }
-              free(url);
-              free(dir);
               goto done_download;
             }
           }
@@ -1204,8 +1202,6 @@ int webui_run(struct webui_settings *s, int port, int timeout_sec) {
       } else {
         send_plain(cfd, 400, "Missing url.");
       }
-      free(url);
-      free(dir);
       goto done_download;
 done_download:
       close(cfd);
